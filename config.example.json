@@ -1,0 +1,6 @@
+{
+  "user_pool_id": "us-east-1_XXXXXXXXX",
+  "client_id": "your-client-id-here",
+  "identity_pool_id": "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "region": "us-east-1"
+}
