@@ -68,7 +68,7 @@ AWS Cognito Authoriser is split into two PyPI packages:
    ```bash
    # For authentication only
    pip install cogauth
-   
+
    # For administration features (includes cogauth)
    pip install cogadmin
    ```

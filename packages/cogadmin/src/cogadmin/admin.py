@@ -420,7 +420,7 @@ def load_policy_template(policy_name):
     if not policies_dir.exists():
         # Fallback to parent directory for development
         policies_dir = Path(__file__).parent.parent.parent / "policies"
-    
+
     policy_file = policies_dir / f"{policy_name}.json"
 
     if not policy_file.exists():
