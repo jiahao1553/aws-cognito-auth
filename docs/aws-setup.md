@@ -7,7 +7,7 @@ Complete guide for setting up the required AWS infrastructure to use the Cognito
 The AWS Cognito Authoriser requires several AWS components:
 
 1. **Cognito User Pool** - User authentication
-2. **Cognito Identity Pool** - Credential exchange  
+2. **Cognito Identity Pool** - Credential exchange
 3. **IAM Roles** - Permission management
 4. **Lambda Function** (Optional) - Extended credentials
 
@@ -177,7 +177,7 @@ For 12-hour credentials, set up the Lambda proxy:
             "Effect": "Allow",
             "Action": [
                 "s3:GetObject",
-                "s3:PutObject", 
+                "s3:PutObject",
                 "s3:DeleteObject",
                 "s3:ListBucket"
             ],
@@ -201,7 +201,7 @@ For 12-hour credentials, set up the Lambda proxy:
             "Resource": "arn:aws:s3:::my-bucket/${cognito-identity.amazonaws.com:sub}/*"
         },
         {
-            "Effect": "Allow", 
+            "Effect": "Allow",
             "Action": "s3:ListBucket",
             "Resource": "arn:aws:s3:::my-bucket",
             "Condition": {
@@ -225,7 +225,7 @@ For 12-hour credentials, set up the Lambda proxy:
             "Effect": "Allow",
             "Action": [
                 "dynamodb:GetItem",
-                "dynamodb:PutItem", 
+                "dynamodb:PutItem",
                 "dynamodb:UpdateItem",
                 "dynamodb:DeleteItem",
                 "dynamodb:Query"
@@ -267,7 +267,7 @@ The `cogadmin` command provides helpers for common setups:
 # S3 policy with user isolation
 cogadmin policy create-s3-policy --bucket-name production-data --user-specific
 
-# DynamoDB policy with user isolation  
+# DynamoDB policy with user isolation
 cogadmin policy create-dynamodb-policy --table-name user-sessions
 
 # Apply custom policy
@@ -302,7 +302,7 @@ aws s3 ls  # (if S3 permissions configured)
 ## Security Considerations
 
 1. **Use least-privilege permissions**
-2. **Enable user isolation for multi-tenant scenarios**  
+2. **Enable user isolation for multi-tenant scenarios**
 3. **Set appropriate credential durations**
 4. **Monitor usage via CloudTrail**
 5. **Regularly rotate IAM user credentials**

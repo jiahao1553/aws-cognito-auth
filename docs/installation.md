@@ -47,7 +47,7 @@ cogauth configure
 
 This will prompt you for:
 - Cognito User Pool ID
-- Cognito App Client ID  
+- Cognito App Client ID
 - Cognito Identity Pool ID
 - AWS Region
 
@@ -90,7 +90,7 @@ cogauth login -u test-user
 ## Next Steps
 
 1. **Set up AWS infrastructure** - See [AWS Setup](aws-setup.md)
-2. **Learn command usage** - See [Usage Guide](usage.md)  
+2. **Learn command usage** - See [Usage Guide](usage.md)
 3. **Configure administrative settings** - See [Administration](administration.md)
 
 ## Development Setup

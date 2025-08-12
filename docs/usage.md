@@ -25,7 +25,7 @@ Interactive configuration of Cognito settings.
 # Login with username prompt
 cogauth login
 
-# Login with specific username  
+# Login with specific username
 cogauth login -u your-username
 
 # Login with specific AWS profile
@@ -132,7 +132,7 @@ cogadmin configure
 # Development environment
 cogauth login -u dev-user --profile development
 
-# Production environment  
+# Production environment
 cogauth login -u prod-user --profile production
 
 # Use with specific profiles
@@ -157,7 +157,7 @@ Create separate config files for different environments:
 **Production (`~/.cognito-cli-config-prod.json`)**:
 ```json
 {
-    "user_pool_id": "us-east-1_prodpool456", 
+    "user_pool_id": "us-east-1_prodpool456",
     "client_id": "prod-client-id",
     "identity_pool_id": "us-east-1:prod-identity-pool-id",
     "region": "us-east-1"
@@ -210,7 +210,7 @@ python process_large_dataset.py
 aws --profile batch s3 cp results.csv s3://output-bucket/
 ```
 
-### Development Workflow  
+### Development Workflow
 ```bash
 # Daily development login
 cogauth login -u developer --duration 8 --profile dev

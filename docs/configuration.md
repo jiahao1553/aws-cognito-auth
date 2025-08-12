@@ -21,7 +21,7 @@ The AWS Cognito Authoriser uses a hierarchical configuration system:
 - **Scope:** All projects for current user
 - **Use:** Common settings like default region
 
-#### Project Configuration  
+#### Project Configuration
 - **Path:** `./cognito-cli-config.json` (in project directory)
 - **Scope:** Current project only
 - **Use:** Project-specific Cognito pools and settings
@@ -188,7 +188,7 @@ export LAMBDA_FUNCTION_NAME="cognito-credential-proxy"
 }
 ```
 
-### Secondary Region Setup  
+### Secondary Region Setup
 ```json
 {
     "region": "us-west-2",
@@ -245,7 +245,7 @@ export LAMBDA_FUNCTION_NAME="cognito-credential-proxy"
 # Test client configuration
 cogauth status
 
-# Test admin configuration  
+# Test admin configuration
 cogadmin configure --validate
 ```
 

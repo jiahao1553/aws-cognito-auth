@@ -20,7 +20,7 @@ This directory contains comprehensive unit and integration tests for the AWS Cog
 Tests are organized using pytest markers:
 
 - `@pytest.mark.unit` - Unit tests for individual functions/methods
-- `@pytest.mark.integration` - Integration tests for component interactions  
+- `@pytest.mark.integration` - Integration tests for component interactions
 - `@pytest.mark.cli` - Tests for command-line interface
 - `@pytest.mark.config` - Configuration-related tests
 - `@pytest.mark.aws` - Tests that interact with AWS services (mocked)
@@ -38,7 +38,7 @@ pytest
 # Run only unit tests
 pytest -m unit
 
-# Run only integration tests  
+# Run only integration tests
 pytest -m integration
 
 # Run only CLI tests
@@ -231,10 +231,10 @@ def test_aws_interaction(self, mock_boto_client):
     mock_client = MagicMock()
     mock_boto_client.return_value = mock_client
     mock_client.method.return_value = {'Response': 'data'}
-    
+
     # Test code that uses AWS
     result = function_under_test()
-    
+
     # Verify interactions
     mock_client.method.assert_called_once_with(expected_params)
 ```
@@ -243,12 +243,12 @@ def test_aws_interaction(self, mock_boto_client):
 ```python
 def test_config_loading():
     config_data = {'key': 'value'}
-    
+
     with tempfile.TemporaryDirectory() as temp_dir:
         config_file = Path(temp_dir) / 'config.json'
         with open(config_file, 'w') as f:
             json.dump(config_data, f)
-        
+
         with patch('pathlib.Path.home', return_value=Path(temp_dir)):
             result = load_config()
             assert result['key'] == 'value'

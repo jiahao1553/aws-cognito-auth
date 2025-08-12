@@ -30,7 +30,7 @@ This prompts for:
 #### Global Admin Config
 `~/.cognito-admin-config.json` - User-level settings
 
-#### Local Project Config  
+#### Local Project Config
 `admin-config.json` - Project-specific overrides
 
 #### Example Configuration
@@ -189,7 +189,7 @@ Interactive setup for:
 ```json
 {
   "aws_service_names": {
-    "long_lived_role_name": "CognitoProdRole", 
+    "long_lived_role_name": "CognitoProdRole",
     "lambda_function_name": "cognito-proxy-prod"
   },
   "aws_configuration": {
@@ -209,7 +209,7 @@ The system includes pre-built policy templates in `policies/`:
 - `long-lived-role-trust-policy.json` - Long-lived role trust policy
 - `cognito-identity-pool-auth-policy.json` - Basic Identity Pool permissions
 
-#### Service Access  
+#### Service Access
 - `s3-access-policy.json` - Basic S3 access
 - `s3-user-isolation-policy.json` - S3 with user folders
 - `dynamodb-user-isolation-policy.json` - DynamoDB row-level security

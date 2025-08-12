@@ -89,8 +89,8 @@ def create_expired_token(username: str = "testuser") -> str:
 
 def create_aws_credentials(
     access_key_id: str = "AKIATEST123456789",
-    secret_access_key: str = "test-secret-access-key-123456789",
-    session_token: str = "test-session-token-very-long-string",
+    secret_access_key: str = "test-secret-access-key-123456789",  # noqa: S107
+    session_token: str = "test-session-token-very-long-string",  # noqa: S107
     expires_in_seconds: int = 3600,
 ) -> dict[str, Any]:
     """
@@ -119,7 +119,10 @@ def create_aws_credentials(
 
 
 def create_lambda_response(
-    credentials: Optional[dict[str, Any]] = None, username: str = "testuser", user_id: Optional[str] = None, status_code: int = 200
+    credentials: Optional[dict[str, Any]] = None,
+    username: str = "testuser",
+    user_id: Optional[str] = None,
+    status_code: int = 200,
 ) -> dict[str, Any]:
     """
     Create a mock Lambda function response for testing.
@@ -302,7 +305,9 @@ def assert_lambda_response_valid(response: dict[str, Any]) -> None:
             assert body[field], f"Lambda response body field {field} is empty"
 
 
-def create_test_config_files(temp_dir: str, client_config: Optional[dict[str, Any]] = None, admin_config: Optional[dict[str, Any]] = None):
+def create_test_config_files(
+    temp_dir: str, client_config: Optional[dict[str, Any]] = None, admin_config: Optional[dict[str, Any]] = None
+):
     """
     Create test configuration files in a temporary directory.
 
