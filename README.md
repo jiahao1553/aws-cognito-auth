@@ -255,7 +255,7 @@ The Identity Pool creates two roles automatically. You need to configure the **a
 
 Create a Lambda function with:
 - **Runtime**: Python 3.9+
-- **Code**: Use `lambda_credential_proxy.py`
+- **Code**: Use `src/aws_cognito_auth/lambda_function.py`
 - **Environment variables**:
   - `IAM_USER_ACCESS_KEY_ID`: IAM user access key ID
   - `IAM_USER_SECRET_ACCESS_KEY`: IAM user secret access key
@@ -412,14 +412,147 @@ export AWS_REGION="us-east-1"
 
 ```bash
 # Development environment
-python3 aws_cognito_auth.py login -u dev-user --profile development
+aws-cognito-auth login -u dev-user --profile development
 
 # Production environment
-python3 aws_cognito_auth.py login -u prod-user --profile production
+aws-cognito-auth login -u prod-user --profile production
 
 # Use with different profiles
 aws --profile development s3 ls
 aws --profile production s3 ls
+```
+
+## ⚙️ Admin Configuration
+
+### Configuration System
+
+The AWS Cognito Authoriser uses a hierarchical configuration system for administrative settings that allows you to customize AWS service names and parameters without modifying code.
+
+### Configuration Files
+
+1. **Global Admin Config**: `~/.cognito-admin-config.json` - User-level settings
+2. **Local Project Config**: `admin-config.json` - Project-specific overrides
+3. **Default Values**: Built-in defaults for all services
+
+### Interactive Configuration
+
+Set up admin configuration interactively:
+```bash
+aws-cognito-admin configure
+```
+
+This command will prompt you to configure:
+- AWS service names (IAM users, roles, Lambda functions)
+- AWS configuration parameters (regions, timeouts, session duration)
+- Policy names for all components
+
+### Configuration Template
+
+Create `admin-config.json` in your project directory or `~/.cognito-admin-config.json` in your home directory:
+
+```json
+{
+  "aws_service_names": {
+    "iam_user_name": "CognitoCredentialProxyUser",
+    "lambda_execution_role_name": "CognitoCredentialProxyRole",
+    "long_lived_role_name": "CognitoLongLivedRole",
+    "lambda_function_name": "cognito-credential-proxy",
+    "identity_pool_name": "CognitoAuthIdentityPool",
+    "policy_names": {
+      "lambda_user_policy": "CognitoCredentialProxyPolicy",
+      "lambda_execution_policy": "CognitoCredentialProxyPolicy",
+      "s3_access_policy": "S3AccessPolicy"
+    }
+  },
+  "aws_configuration": {
+    "default_region": "ap-southeast-1",
+    "lambda_runtime": "python3.9",
+    "lambda_timeout": 30,
+    "max_session_duration": 43200,
+    "default_bucket": "my-s3-bucket"
+  }
+}
+```
+
+### Environment-Specific Configurations
+
+**Development Environment:**
+```json
+{
+  "aws_service_names": {
+    "long_lived_role_name": "CognitoDevRole",
+    "lambda_function_name": "cognito-proxy-dev"
+  },
+  "aws_configuration": {
+    "default_bucket": "my-dev-bucket"
+  }
+}
+```
+
+**Production Environment:**
+```json
+{
+  "aws_service_names": {
+    "long_lived_role_name": "CognitoProdRole",
+    "lambda_function_name": "cognito-proxy-prod"
+  },
+  "aws_configuration": {
+    "default_bucket": "my-prod-bucket",
+    "max_session_duration": 28800
+  }
+}
+```
+
+### Configuration Loading Priority
+
+1. **Built-in defaults** (lowest priority)
+2. **Global config** (`~/.cognito-admin-config.json`)
+3. **Local project config** (`admin-config.json`) (highest priority)
+
+### Configurable Components
+
+#### AWS Service Names
+- **IAM User Name**: User for Lambda proxy authentication
+- **Lambda Execution Role**: Role for Lambda function execution
+- **Long-lived Role**: Role users assume for extended credentials
+- **Lambda Function Name**: Name of the credential proxy function
+- **Identity Pool Name**: Cognito Identity Pool name
+
+#### AWS Configuration Parameters
+- **Default Region**: Primary AWS region for deployments
+- **Lambda Runtime**: Python version for Lambda functions
+- **Lambda Timeout**: Function execution timeout in seconds
+- **Max Session Duration**: Maximum credential lifetime (up to 12 hours)
+- **Default Bucket**: S3 bucket for basic access policies
+
+#### Policy Names
+- **Lambda User Policy**: Policy for Lambda IAM user
+- **Lambda Execution Policy**: Basic execution policy
+- **S3 Access Policy**: Default S3 access policy name
+
+### Admin Features
+
+The administrative tool provides comprehensive AWS infrastructure management:
+
+```bash
+# Configure admin settings interactively
+aws-cognito-admin configure
+
+# View Identity Pool role configuration
+aws-cognito-admin role info
+
+# Create service-specific policies
+aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
+aws-cognito-admin policy create-dynamodb-policy --table-name my-table
+
+# Apply custom policies
+aws-cognito-admin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
+
+# Deploy Lambda infrastructure
+aws-cognito-admin lambda deploy --create-user
+
+# Set up new Cognito Identity Pool
+aws-cognito-admin setup-identity-pool
 ```
 
 ## 📊 Monitoring and Logging
@@ -436,7 +569,7 @@ aws logs tail /aws/lambda/cognito-credential-proxy --follow
 Enable detailed logging:
 ```bash
 export BOTO_DEBUG=1
-python3 aws_cognito_auth.py login -u username
+aws-cognito-auth login -u username
 ```
 
 ## ❗ Troubleshooting
@@ -462,17 +595,17 @@ python3 aws_cognito_auth.py login -u username
 - Check: IAM role trust policy for Identity Pool authenticated role
 
 **"Lambda function not found"**
-- Solution: Deploy Lambda function using `deploy_lambda.py`
-- Verify: Function name is `cognito-credential-proxy`
+- Solution: Deploy Lambda function using `aws-cognito-admin lambda deploy`
+- Verify: Function name matches your configuration (default: `cognito-credential-proxy`)
 
 ### Testing Setup
 
 ```bash
 # Test configuration
-python3 aws_cognito_auth.py status
+aws-cognito-auth status
 
 # Test authentication (will show detailed error messages)
-python3 aws_cognito_auth.py login -u test-user
+aws-cognito-auth login -u test-user
 
 # Test AWS access
 aws sts get-caller-identity

@@ -1,6 +1,6 @@
 [project]
 name = "aws-cognito-auth"
-version = "1.0.0"
+version = "0.0.1"
 description = "AWS Cognito authentication CLI tool for seamless AWS CLI integration with temporary credential management."
 authors = [{ name = "JiaHao Tan", email = "jiahaotan@outlook.com" }]
 readme = "README.md"

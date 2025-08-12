@@ -1,0 +1,23 @@
+{
+  "aws_service_names": {
+    "iam_user_name": "CognitoCredentialProxyUser",
+    "lambda_execution_role_name": "CognitoCredentialProxyRole",
+    "long_lived_role_name": "CognitoLongLivedRole",
+    "lambda_function_name": "cognito-credential-proxy",
+    "identity_pool_name": "CognitoAuthIdentityPool",
+    "policy_names": {
+      "lambda_user_policy": "CognitoCredentialProxyPolicy",
+      "lambda_execution_policy": "CognitoCredentialProxyPolicy",
+      "s3_access_policy": "S3AccessPolicy"
+    }
+  },
+  "aws_configuration": {
+    "default_region": "ap-southeast-1",
+    "lambda_runtime": "python3.9",
+    "lambda_timeout": 30,
+    "max_session_duration": 43200,
+    "default_bucket": "my-s3-bucket"
+  },
+  "identity_pool_id": "",
+  "region": ""
+}

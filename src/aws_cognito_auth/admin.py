@@ -77,16 +77,22 @@ class LambdaDeployer:
         self.lambda_client = boto3.client("lambda", region_name=region)
         self.iam = boto3.client("iam", region_name=region)
         self.sts = boto3.client("sts", region_name=region)
+        self.admin_config = load_admin_config()
 
     def create_lambda_user(self):
         """Create IAM user for Lambda function to avoid role chaining limits"""
         account_id = self.sts.get_caller_identity()["Account"]
 
         user_policy_template = load_policy_template("lambda-user-policy")
-        user_policy = json.dumps(user_policy_template).replace("{account_id}", account_id)
+        # Replace placeholders in policy template
+        user_policy = json.dumps(user_policy_template)
+        user_policy = user_policy.replace("{account_id}", account_id)
+        user_policy = user_policy.replace(
+            "{long_lived_role_name}", self.admin_config["aws_service_names"]["long_lived_role_name"]
+        )
         user_policy = json.loads(user_policy)
 
-        user_name = "CognitoCredentialProxyUser"
+        user_name = self.admin_config["aws_service_names"]["iam_user_name"]
 
         try:
             # Create user
@@ -98,7 +104,7 @@ class LambdaDeployer:
             # Attach inline policy
             self.iam.put_user_policy(
                 UserName=user_name,
-                PolicyName="CognitoCredentialProxyPolicy",
+                PolicyName=self.admin_config["aws_service_names"]["policy_names"]["lambda_user_policy"],
                 PolicyDocument=json.dumps(user_policy),
             )
 
@@ -123,7 +129,7 @@ class LambdaDeployer:
             try:
                 self.iam.put_user_policy(
                     UserName=user_name,
-                    PolicyName="CognitoCredentialProxyPolicy",
+                    PolicyName=self.admin_config["aws_service_names"]["policy_names"]["lambda_user_policy"],
                     PolicyDocument=json.dumps(user_policy),
                 )
                 print(f"✅ Updated policy for {user_name}")
@@ -165,7 +171,7 @@ class LambdaDeployer:
         trust_policy = load_policy_template("lambda-execution-trust-policy")
         role_policy = load_policy_template("lambda-execution-policy")
 
-        role_name = "CognitoCredentialProxyRole"
+        role_name = self.admin_config["aws_service_names"]["lambda_execution_role_name"]
 
         try:
             # Create role
@@ -178,7 +184,7 @@ class LambdaDeployer:
             # Attach inline policy
             self.iam.put_role_policy(
                 RoleName=role_name,
-                PolicyName="CognitoCredentialProxyPolicy",
+                PolicyName=self.admin_config["aws_service_names"]["policy_names"]["lambda_execution_policy"],
                 PolicyDocument=json.dumps(role_policy),
             )
 
@@ -191,7 +197,7 @@ class LambdaDeployer:
             try:
                 self.iam.put_role_policy(
                     RoleName=role_name,
-                    PolicyName="CognitoCredentialProxyPolicy",
+                    PolicyName=self.admin_config["aws_service_names"]["policy_names"]["lambda_execution_policy"],
                     PolicyDocument=json.dumps(role_policy),
                 )
                 print(f"✅ Updated policy for {role_name}")
@@ -208,7 +214,7 @@ class LambdaDeployer:
         trust_policy = json.dumps(trust_policy_template).replace("{lambda_user_arn}", lambda_user_arn)
         trust_policy = json.loads(trust_policy)
 
-        role_name = "CognitoLongLivedRole"
+        role_name = self.admin_config["aws_service_names"]["long_lived_role_name"]
 
         try:
             # Create role
@@ -216,17 +222,22 @@ class LambdaDeployer:
                 RoleName=role_name,
                 AssumeRolePolicyDocument=json.dumps(trust_policy),
                 Description="Long-lived role for Cognito authenticated users",
-                MaxSessionDuration=43200,  # 12 hours
+                MaxSessionDuration=self.admin_config["aws_configuration"]["max_session_duration"],
             )
 
             print(f"✅ Created long-lived role: {role_name}")
 
             # Basic S3 access policy as example
-            s3_policy = load_policy_template("s3-access-policy")
+            s3_policy_template = load_policy_template("s3-access-policy")
+            # Replace placeholder with configured bucket name
+            s3_policy = json.dumps(s3_policy_template).replace(
+                "{default_bucket}", self.admin_config["aws_configuration"]["default_bucket"]
+            )
+            s3_policy = json.loads(s3_policy)
 
             self.iam.put_role_policy(
                 RoleName=role_name,
-                PolicyName="S3AccessPolicy",
+                PolicyName=self.admin_config["aws_service_names"]["policy_names"]["s3_access_policy"],
                 PolicyDocument=json.dumps(s3_policy),
             )
 
@@ -264,11 +275,11 @@ class LambdaDeployer:
         with open(lambda_zip, "rb") as zip_file:
             zip_content = zip_file.read()
 
-        function_name = "cognito-credential-proxy"
+        function_name = self.admin_config["aws_service_names"]["lambda_function_name"]
         account_id = self.sts.get_caller_identity()["Account"]
 
         environment_vars = {
-            "DEFAULT_ROLE_ARN": f"arn:aws:iam::{account_id}:role/CognitoLongLivedRole",
+            "DEFAULT_ROLE_ARN": f"arn:aws:iam::{account_id}:role/{self.admin_config['aws_service_names']['long_lived_role_name']}",
             "IAM_USER_AWS_ACCESS_KEY_ID": user_credentials["access_key_id"],
             "IAM_USER_AWS_SECRET_ACCESS_KEY": user_credentials["secret_access_key"],
         }
@@ -276,12 +287,12 @@ class LambdaDeployer:
         try:
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
-                Runtime="python3.9",
+                Runtime=self.admin_config["aws_configuration"]["lambda_runtime"],
                 Role=lambda_role_arn,
                 Handler="lambda_function.lambda_handler",
                 Code={"ZipFile": zip_content},
                 Description="Exchange Cognito tokens for long-lived AWS credentials",
-                Timeout=30,
+                Timeout=self.admin_config["aws_configuration"]["lambda_timeout"],
                 Environment={"Variables": environment_vars},
             )
 
@@ -338,6 +349,68 @@ def load_config():
             logging.exception("Exception occurred while loading config file")
 
     return config
+
+
+def _merge_config(default_config, file_config):
+    """Helper to merge file_config into default_config with partial overrides"""
+    for section, values in file_config.items():
+        if section in default_config:
+            if isinstance(values, dict):
+                default_config[section].update(values)
+            else:
+                default_config[section] = values
+        else:
+            default_config[section] = values
+    return default_config
+
+
+def load_admin_config():
+    """Load administrative configuration for AWS service names and settings"""
+    default_config = {
+        "aws_service_names": {
+            "iam_user_name": "CognitoCredentialProxyUser",
+            "lambda_execution_role_name": "CognitoCredentialProxyRole",
+            "long_lived_role_name": "CognitoLongLivedRole",
+            "lambda_function_name": "cognito-credential-proxy",
+            "identity_pool_name": "CognitoAuthIdentityPool",
+            "policy_names": {
+                "lambda_user_policy": "CognitoCredentialProxyPolicy",
+                "lambda_execution_policy": "CognitoCredentialProxyPolicy",
+                "s3_access_policy": "S3AccessPolicy",
+            },
+        },
+        "aws_configuration": {
+            "default_region": "ap-southeast-1",
+            "lambda_runtime": "python3.9",
+            "lambda_timeout": 30,
+            "max_session_duration": 43200,
+            "default_bucket": "my-s3-bucket",
+        },
+    }
+
+    admin_config_file = Path.home() / ".cognito-admin-config.json"
+    if admin_config_file.exists():
+        try:
+            with open(admin_config_file) as f:
+                file_config = json.load(f)
+                default_config = _merge_config(default_config, file_config)
+        except Exception:
+            import logging
+
+            logging.exception("Exception occurred while loading admin config file")
+
+    local_admin_config = Path(__file__).parent.parent.parent / "admin-config.json"
+    if local_admin_config.exists():
+        try:
+            with open(local_admin_config) as f:
+                file_config = json.load(f)
+                default_config = _merge_config(default_config, file_config)
+        except Exception:
+            import logging
+
+            logging.exception("Exception occurred while loading local admin config file")
+
+    return default_config
 
 
 def load_policy_template(policy_name):
@@ -592,9 +665,7 @@ def deploy(region, access_key_id, secret_access_key, create_user, lambda_code):
             print("   1. Provide --access-key-id and --secret-access-key for your existing IAM user")
             print("   2. Use --create-user flag (requires elevated permissions)")
             print("\nExample:")
-            print(
-                "   python admin.py lambda deploy --access-key-id AKIA... --secret-access-key ... --lambda-code lambda_function.py"
-            )
+            print("   aws-cognito-admin lambda deploy --access-key-id AKIA... --secret-access-key ...")
             return
 
         # Create roles
@@ -626,23 +697,99 @@ def deploy(region, access_key_id, secret_access_key, create_user, lambda_code):
 
 
 @admin_cli.command()
+def configure():
+    """Configure administrative settings for AWS service names and parameters"""
+    click.echo("🔧 AWS Cognito Admin Configuration")
+    click.echo("This will create/update your administrative configuration file")
+
+    # Load existing config or defaults
+    current_config = load_admin_config()
+
+    click.echo("\n📋 AWS Service Names Configuration:")
+
+    # Configure service names
+    service_names = {}
+    service_names["iam_user_name"] = click.prompt(
+        "IAM User name for Lambda proxy", default=current_config["aws_service_names"]["iam_user_name"]
+    )
+    service_names["lambda_execution_role_name"] = click.prompt(
+        "Lambda execution role name", default=current_config["aws_service_names"]["lambda_execution_role_name"]
+    )
+    service_names["long_lived_role_name"] = click.prompt(
+        "Long-lived role name", default=current_config["aws_service_names"]["long_lived_role_name"]
+    )
+    service_names["lambda_function_name"] = click.prompt(
+        "Lambda function name", default=current_config["aws_service_names"]["lambda_function_name"]
+    )
+    service_names["identity_pool_name"] = click.prompt(
+        "Identity Pool name", default=current_config["aws_service_names"]["identity_pool_name"]
+    )
+
+    click.echo("\n📋 AWS Configuration Parameters:")
+
+    # Configure AWS parameters
+    aws_config = {}
+    aws_config["default_region"] = click.prompt(
+        "Default AWS region", default=current_config["aws_configuration"]["default_region"]
+    )
+    aws_config["lambda_runtime"] = click.prompt(
+        "Lambda runtime", default=current_config["aws_configuration"]["lambda_runtime"]
+    )
+    aws_config["lambda_timeout"] = click.prompt(
+        "Lambda timeout (seconds)", default=current_config["aws_configuration"]["lambda_timeout"], type=int
+    )
+    aws_config["max_session_duration"] = click.prompt(
+        "Maximum session duration (seconds)",
+        default=current_config["aws_configuration"]["max_session_duration"],
+        type=int,
+    )
+    aws_config["default_bucket"] = click.prompt(
+        "Default S3 bucket name", default=current_config["aws_configuration"]["default_bucket"]
+    )
+
+    # Build final config
+    admin_config = {
+        "aws_service_names": {**service_names, "policy_names": current_config["aws_service_names"]["policy_names"]},
+        "aws_configuration": aws_config,
+    }
+
+    # Save to user's home directory
+    config_file = Path.home() / ".cognito-admin-config.json"
+    with open(config_file, "w") as f:
+        json.dump(admin_config, f, indent=2)
+
+    click.echo(f"\n✅ Admin configuration saved to: {config_file}")
+    click.echo(
+        "You can also create a local admin-config.json file in the project directory to override these settings."
+    )
+
+
+@admin_cli.command()
 def setup_identity_pool():
     """Set up Cognito Identity Pool (interactive)"""
     click.echo("🔧 Cognito Identity Pool Setup")
     click.echo("This command will guide you through setting up a Cognito Identity Pool")
     click.echo("⚠️  This requires User Pool to already exist")
 
+    # Load admin config for default values
+    admin_config = load_admin_config()
+
     # Get User Pool information
     user_pool_id = click.prompt("Enter your Cognito User Pool ID")
     app_client_id = click.prompt("Enter your User Pool App Client ID")
-    region = click.prompt("Enter AWS region", default="ap-southeast-1")
+    region = click.prompt("Enter AWS region", default=admin_config["aws_configuration"]["default_region"])
+
+    # Allow customization of Identity Pool name
+    identity_pool_name = click.prompt(
+        "Identity Pool name", default=admin_config["aws_service_names"]["identity_pool_name"]
+    )
 
     # Create Identity Pool
     cognito_identity = boto3.client("cognito-identity", region_name=region)
 
     try:
         response = cognito_identity.create_identity_pool(
-            IdentityPoolName="CognitoAuthIdentityPool",
+            IdentityPoolName=identity_pool_name,
             AllowUnauthenticatedIdentities=False,
             CognitoIdentityProviders=[
                 {"ProviderName": f"cognito-idp.{region}.amazonaws.com/{user_pool_id}", "ClientId": app_client_id}

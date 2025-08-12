@@ -29,7 +29,7 @@ Minimum policy required for the Cognito Identity Pool authenticated role.
 
 #### `s3-access-policy.json`
 Basic S3 access policy for a specific bucket with full permissions.
-- Default bucket: `precise-aws-setup`
+- Default bucket: `my-s3-bucket`
 - Actions: GetObject, PutObject, DeleteObject, ListBucket
 
 #### `s3-user-isolation-policy.json`
@@ -56,13 +56,13 @@ These policies are automatically loaded by the admin tool:
 
 ```bash
 # Create S3 policy with user isolation
-python admin.py policy create-s3-policy --bucket-name my-bucket --user-specific
+aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
 
 # Create DynamoDB policy
-python admin.py policy create-dynamodb-policy --table-name my-table
+aws-cognito-admin policy create-dynamodb-policy --table-name my-table
 
 # Apply custom policy from file
-python admin.py role apply-policy --policy-file custom-policy.json --policy-name CustomPolicy
+aws-cognito-admin role apply-policy --policy-file custom-policy.json --policy-name CustomPolicy
 ```
 
 ## Placeholder Variables
@@ -74,6 +74,8 @@ Common placeholder variables used across policies:
 - `{bucket_name}` - S3 bucket name
 - `{table_name}` - DynamoDB table name
 - `{lambda_user_arn}` - ARN of the Lambda IAM user
+- `{long_lived_role_name}` - Name of the long-lived role (configurable)
+- `{default_bucket}` - Default S3 bucket name (configurable)
 
 ## Cognito Identity Variables
 
@@ -96,4 +98,4 @@ To create custom policies:
 1. Create a new JSON file in this directory
 2. Use placeholder variables as needed
 3. Reference the policy in the admin tool using `load_policy_template()`
-4. Add appropriate CLI commands in `admin.py`
+4. Add appropriate CLI commands in `src/aws_cognito_auth/admin.py`

@@ -151,15 +151,22 @@ class CognitoAuthenticator:
 
         account_id = sts_client.get_caller_identity()["Account"]
 
+        # Load admin config to get configurable role name
+        from .admin import load_admin_config
+
+        admin_config = load_admin_config()
+
         payload = {
             "id_token": id_token,
             "duration_seconds": duration_hours * 3600,  # Convert hours to seconds
-            "role_arn": f"arn:aws:iam::{account_id}:role/CognitoLongLivedRole",
+            "role_arn": f"arn:aws:iam::{account_id}:role/{admin_config['aws_service_names']['long_lived_role_name']}",
         }
 
         try:
             response = lambda_client.invoke(
-                FunctionName="cognito-credential-proxy", InvocationType="RequestResponse", Payload=json.dumps(payload)
+                FunctionName=admin_config["aws_service_names"]["lambda_function_name"],
+                InvocationType="RequestResponse",
+                Payload=json.dumps(payload),
             )
 
             # Parse response
@@ -190,7 +197,7 @@ class CognitoAuthenticator:
 
         except lambda_client.exceptions.ResourceNotFoundException:
             raise Exception(
-                "Lambda function 'cognito-credential-proxy' not found. Please deploy it first using deploy_lambda.py"
+                f"Lambda function '{admin_config['aws_service_names']['lambda_function_name']}' not found. Please deploy it first using aws-cognito-admin lambda deploy"
             ) from None
         except Exception as e:
             # Don't fallback here - let the main method handle it
