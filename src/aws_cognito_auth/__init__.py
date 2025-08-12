@@ -8,15 +8,15 @@ Main components:
 - admin: Administrative tools for AWS infrastructure management
 """
 
-from .client import CognitoAuthenticator, AWSProfileManager
 from .admin import CognitoRoleManager, LambdaDeployer
+from .client import AWSProfileManager, CognitoAuthenticator
 
 __version__ = "1.0.0"
 __author__ = "AWS Cognito Auth Team"
 
 __all__ = [
+    "AWSProfileManager",
     "CognitoAuthenticator",
-    "AWSProfileManager", 
     "CognitoRoleManager",
     "LambdaDeployer",
 ]

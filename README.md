@@ -210,7 +210,7 @@ Create a User Pool with the following settings:
 - **Sign-in options**: Username
 - **Password policy**: As per your security requirements
 - **MFA**: Optional but recommended
-- **App client**: 
+- **App client**:
   - Client type: Public client
   - Authentication flows: `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH`
 
@@ -414,7 +414,7 @@ export AWS_REGION="us-east-1"
 # Development environment
 python3 aws_cognito_auth.py login -u dev-user --profile development
 
-# Production environment  
+# Production environment
 python3 aws_cognito_auth.py login -u prod-user --profile production
 
 # Use with different profiles

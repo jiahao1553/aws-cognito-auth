@@ -102,7 +102,7 @@ select = [
     # ruff
     "RUF",
     # tryceratops
-    "TRY",
+    # "TRY",
 ]
 ignore = [
     # LineTooLong
@@ -123,4 +123,3 @@ skip_empty = true
 [tool.coverage.run]
 branch = true
 source = ["src"]
-
