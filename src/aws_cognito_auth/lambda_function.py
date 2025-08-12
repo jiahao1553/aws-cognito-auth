@@ -6,7 +6,8 @@ This Lambda function exchanges Cognito User Pool tokens for longer-lived STS cre
 
 import base64
 import json
-from datetime import datetime, timedelta
+import os
+from datetime import datetime
 
 import boto3
 from botocore.exceptions import ClientError
@@ -28,15 +29,20 @@ def lambda_handler(event, context):
         # Parse request
         body = json.loads(event.get('body', '{}')) if event.get('body') else event
         
-        
         id_token = body.get('id_token')
         duration_seconds = body.get('duration_seconds', 43200)  # 12 hours default
-        role_arn = body.get('role_arn', 'arn:aws:iam::767397975955:role/CognitoLongLivedRole')
+        role_arn = body.get('role_arn', os.environ.get('DEFAULT_ROLE_ARN'))
         
         if not id_token:
             return {
                 'statusCode': 400,
                 'body': json.dumps({'error': 'id_token is required'})
+            }
+        
+        if not role_arn:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'role_arn is required (provide in request or DEFAULT_ROLE_ARN env var)'})
             }
         
         # Validate and decode the ID token
@@ -57,15 +63,14 @@ def lambda_handler(event, context):
         
         # Create STS client using IAM user credentials (not Lambda role)
         # This avoids the role chaining limitation
-        import os
-        access_key = os.environ.get('IAM_USER_ACCESS_KEY_ID')
-        secret_key = os.environ.get('IAM_USER_SECRET_ACCESS_KEY')
+        access_key = os.environ.get('IAM_USER_AWS_ACCESS_KEY_ID')
+        secret_key = os.environ.get('IAM_USER_AWS_SECRET_ACCESS_KEY')
         
         print(f"Debug - Using access key: {access_key[:4]}...{access_key[-4:] if access_key else 'None'}")
         print(f"Debug - Using secret key: {'***REDACTED***' if secret_key else 'None'}")
         
         if not access_key or not secret_key:
-            raise Exception("Missing IAM user credentials in environment variables")
+            raise Exception("Missing IAM user credentials in environment variables (IAM_USER_AWS_ACCESS_KEY_ID/IAM_USER_AWS_SECRET_ACCESS_KEY)")
         
         try:
             sts_client = boto3.client(
@@ -85,10 +90,10 @@ def lambda_handler(event, context):
             print(f"Debug - STS client identity check failed: {e}")
             raise
         
-        # Assume role for longer duration (temporarily without tags to debug)
+        # Assume role for longer duration
         response = sts_client.assume_role(
             RoleArn=role_arn,
-            RoleSessionName=f'CognitoUser-{username[-8:]}-{int(datetime.now().timestamp())}',  # Truncate username for session name length
+            RoleSessionName=f'CognitoUser-{username[-8:]}-{int(datetime.now().timestamp())}',
             DurationSeconds=min(duration_seconds, 43200)  # Max 12 hours
         )
         

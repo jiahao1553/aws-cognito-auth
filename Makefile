@@ -1,59 +1,46 @@
-# AWS Cognito Authoriser Makefile
+.PHONY: install
+install: ## Install the virtual environment and install the pre-commit hooks
+	@echo "🚀 Creating virtual environment using uv"
+	@uv sync
+	@uv run pre-commit install
 
-.PHONY: install configure login status clean help setup-identity-pool validate-identity-pool
+.PHONY: check
+check: ## Run code quality tools.
+	@echo "🚀 Checking lock file consistency with 'pyproject.toml'"
+	@uv lock --locked
+	@echo "🚀 Linting code: Running pre-commit"
+	@uv run pre-commit run -a
+	@echo "🚀 Static type checking: Running ty"
+	@uv run ty check
+	@echo "🚀 Checking for obsolete dependencies: Running deptry"
+	@uv run deptry src
 
-# Default target
+.PHONY: test
+test: ## Test the code with pytest
+	@echo "🚀 Testing code: Running pytest"
+	@uv run python -m pytest --cov --cov-config=pyproject.toml --cov-report=xml
+
+.PHONY: build
+build: clean-build ## Build wheel file
+	@echo "🚀 Creating wheel file"
+	@uvx --from build pyproject-build --installer uv
+
+.PHONY: clean-build
+clean-build: ## Clean build artifacts
+	@echo "🚀 Removing build artifacts"
+	@uv run python -c "import shutil; import os; shutil.rmtree('dist') if os.path.exists('dist') else None"
+
+.PHONY: publish
+publish: ## Publish a release to PyPI.
+	@echo "🚀 Publishing."
+	@uvx twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
+
+.PHONY: build-and-publish
+build-and-publish: build publish ## Build and publish.
+
+.PHONY: help
 help:
-	@echo "AWS Cognito Authoriser - Available commands:"
-	@echo ""
-	@echo "  make install              - Install dependencies and setup"
-	@echo "  make configure            - Configure Cognito settings"
-	@echo "  make setup-identity-pool  - Create new Identity Pool (if you don't have one)"
-	@echo "  make validate-identity-pool - Validate Identity Pool setup"
-	@echo "  make login                - Login and update AWS profile"
-	@echo "  make status               - Show configuration status"
-	@echo "  make clean                - Clean up temporary files"
-	@echo "  make help                 - Show this help message"
+	@uv run python -c "import re; \
+	[[print(f'\033[36m{m[0]:<20}\033[0m {m[1]}') for m in re.findall(r'^([a-zA-Z_-]+):.*?## (.*)$$', open(makefile).read(), re.M)] for makefile in ('$(MAKEFILE_LIST)').strip().split()]"
 
-# Install dependencies and setup
-install:
-	@echo "📦 Installing dependencies..."
-	pip3 install -r requirements.txt
-	@echo "🔧 Making scripts executable..."
-	chmod +x cognito_cli.py role_manager.py identity_pool_setup.py quickstart.sh
-	@echo "✅ Installation complete!"
-
-# Configure Cognito settings
-configure:
-	python3 cognito_cli.py configure
-
-# Setup Identity Pool (for new users who don't have one)
-setup-identity-pool:
-	@echo "🚀 Setting up new Identity Pool..."
-	python3 identity_pool_setup.py create-full-setup
-
-# Validate Identity Pool setup
-validate-identity-pool:
-	@echo "🔍 Validating Identity Pool setup..."
-	python3 identity_pool_setup.py validate-setup
-
-# Login with prompt for username
-login:
-	python3 cognito_cli.py login
-
-# Show status
-status:
-	python3 cognito_cli.py status
-
-# Clean up
-clean:
-	@echo "🧹 Cleaning up..."
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
-	@echo "✅ Cleanup complete!"
-
-# Quick setup using the shell script
-quickstart:
-	@echo "🚀 Running quick start setup..."
-	chmod +x quickstart.sh
-	./quickstart.sh
+.DEFAULT_GOAL := help

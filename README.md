@@ -57,26 +57,26 @@ The system consists of three main components:
    cd aws-authoriser
    ```
 
-2. **Install dependencies:**
+2. **Install the package:**
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 3. **Configure the tool:**
    ```bash
-   python3 aws_cognito_auth.py configure
+   aws-cognito-auth configure
    ```
 
 4. **Login and get credentials:**
    ```bash
-   python3 aws_cognito_auth.py login -u your-username
+   aws-cognito-auth login -u your-username
    ```
 
 ## ⚙️ Configuration
 
 ### Method 1: Interactive Configuration
 ```bash
-python3 aws_cognito_auth.py configure
+aws-cognito-auth configure
 ```
 
 ### Method 2: Environment Variables
@@ -100,39 +100,79 @@ Create `~/.cognito-cli-config.json`:
 
 ## 🎯 Usage
 
-### Basic Commands
+### Authentication Client Commands
 
 ```bash
 # Check configuration status
-python3 aws_cognito_auth.py status
+aws-cognito-auth status
+
+# Configure authentication settings
+aws-cognito-auth configure
 
 # Login with username prompt
-python3 aws_cognito_auth.py login
+aws-cognito-auth login
 
 # Login with specific username
-python3 aws_cognito_auth.py login -u your-username
+aws-cognito-auth login -u your-username
 
 # Login and update specific AWS profile
-python3 aws_cognito_auth.py login -u your-username --profile my-profile
+aws-cognito-auth login -u your-username --profile my-profile
+
+# Skip Lambda proxy and use only Identity Pool credentials
+aws-cognito-auth login -u your-username --no-lambda-proxy
+
+# Set credential duration (Lambda proxy only)
+aws-cognito-auth login -u your-username --duration 8
 
 # Get help
-python3 aws_cognito_auth.py --help
+aws-cognito-auth --help
+```
+
+### Administrative Commands
+
+```bash
+# View Identity Pool role information
+aws-cognito-admin role info
+
+# Create S3 access policy for a bucket
+aws-cognito-admin policy create-s3-policy --bucket-name my-bucket
+
+# Create S3 policy with user isolation (Cognito identity-based)
+aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
+
+# Create DynamoDB access policy with user isolation
+aws-cognito-admin policy create-dynamodb-policy --table-name my-table
+
+# Apply custom policy from JSON file
+aws-cognito-admin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
+
+# Deploy Lambda credential proxy
+aws-cognito-admin lambda deploy --access-key-id AKIA... --secret-access-key ...
+
+# Create new IAM user for Lambda proxy (requires admin permissions)
+aws-cognito-admin lambda deploy --create-user
+
+# Set up new Cognito Identity Pool interactively
+aws-cognito-admin setup-identity-pool
+
+# Get help for admin commands
+aws-cognito-admin --help
 ```
 
 ### Example Workflow
 
 ```bash
 # 1. Configure once
-python3 aws_cognito_auth.py configure
+aws-cognito-auth configure
 
 # 2. Login and get credentials
-python3 aws_cognito_auth.py login -u myuser
+aws-cognito-auth login -u myuser
 
 # Sample output:
 # 🎫 Getting temporary credentials from Cognito Identity Pool...
-# ✅ Successfully obtained Identity Pool credentials (expires at 2025-08-12 14:30:00)
+# ✅ Successfully obtained Identity Pool credentials (expires at 2025-08-12 14:30:00 PST)
 # 🎫 Attempting to upgrade to longer-lived credentials via Lambda proxy...
-# ✅ Successfully upgraded to longer-lived credentials (expires at 2025-08-13 01:30:00)
+# ✅ Successfully upgraded to longer-lived credentials (expires at 2025-08-13 01:30:00 PST)
 
 # 3. Use AWS CLI commands
 aws s3 ls
@@ -144,17 +184,20 @@ aws s3 sync s3://my-bucket/my-folder ./local-folder
 
 ### Option 1: Automated Setup (Recommended)
 
-Use the provided deployment scripts:
+Use the provided administrative commands:
 
 ```bash
-# Deploy complete infrastructure
-python3 deploy_lambda.py --create-user
+# Deploy complete Lambda infrastructure with new IAM user
+aws-cognito-admin lambda deploy --create-user
 
-# Set up IAM user for Lambda proxy
-python3 setup_iam_user.py
+# Or deploy with existing IAM user credentials
+aws-cognito-admin lambda deploy --access-key-id AKIA... --secret-access-key ...
 
-# Deploy Identity Pool
-python3 identity_pool_setup.py
+# Set up new Cognito Identity Pool interactively
+aws-cognito-admin setup-identity-pool
+
+# View current role configuration
+aws-cognito-admin role info
 ```
 
 ### Option 2: Manual Setup
@@ -260,23 +303,26 @@ Create a Lambda function with:
 
 ### Role Manager Tool
 
-The project includes a comprehensive role manager for handling IAM policies:
+The project includes comprehensive administrative tools for handling IAM policies and AWS infrastructure:
 
 ```bash
-# View current role information
-python3 role_manager.py info
+# View current Identity Pool role information
+aws-cognito-admin role info
 
-# Create S3 policy with user isolation
-python3 role_manager.py create-s3-policy --bucket my-bucket --user-specific
+# Create S3 policy with user isolation (Cognito identity-based)
+aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
 
 # Create S3 policy with full bucket access
-python3 role_manager.py create-s3-policy --bucket my-bucket --full-access
+aws-cognito-admin policy create-s3-policy --bucket-name my-bucket
 
-# Apply custom policy from file
-python3 role_manager.py apply-policy --policy-file my-policy.json --policy-name MyPolicy
+# Create DynamoDB policy with user isolation
+aws-cognito-admin policy create-dynamodb-policy --table-name my-table
 
-# Validate current setup
-python3 role_manager.py validate
+# Apply custom policy from JSON file
+aws-cognito-admin role apply-policy --policy-file my-policy.json --policy-name MyPolicy
+
+# Deploy Lambda credential proxy infrastructure
+aws-cognito-admin lambda deploy --create-user
 ```
 
 ### Service-Specific Permissions
@@ -446,11 +492,11 @@ aws s3 ls
 
 ### Project Files
 
-- `aws_cognito_auth.py` - Main CLI application
-- `role_manager.py` - IAM role and policy management
-- `deploy_lambda.py` - Lambda function deployment
-- `lambda_credential_proxy.py` - Lambda proxy function
-- `setup_iam_user.py` - IAM user creation for Lambda
+- `src/aws_cognito_auth/client.py` - Main authentication client
+- `src/aws_cognito_auth/admin.py` - Administrative tools for AWS infrastructure
+- `src/aws_cognito_auth/lambda_function.py` - Lambda proxy function
+- `policies/` - IAM policy templates (JSON files)
+- `pyproject.toml` - Project configuration and dependencies
 
 ### AWS Services Used
 
@@ -475,7 +521,7 @@ Contributions are welcome! Please ensure:
 ---
 
 **⚡ Quick Start Summary:**
-1. `pip install -r requirements.txt`
-2. `python3 aws_cognito_auth.py configure`
-3. `python3 aws_cognito_auth.py login -u username`
+1. `pip install -e .`
+2. `aws-cognito-auth configure`
+3. `aws-cognito-auth login -u username`
 4. Use AWS CLI commands normally!

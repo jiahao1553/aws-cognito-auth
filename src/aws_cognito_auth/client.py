@@ -116,7 +116,7 @@ class CognitoAuthenticator:
             elif error_code == 'AccessDenied' and 'AssumeRoleWithWebIdentity' in error_message:
                 raise Exception(f"IAM Role Trust Policy Issue: {error_message}\n"
                                f"The role trust policy needs to be updated to allow web identity federation.\n"
-                               f"Check the trust policy of role: arn:aws:iam::897039363324:role/service-role/s3-access-identitypool-role")
+                               f"Check the trust policy of your Identity Pool's authenticated role in the IAM console.")
             else:
                 raise Exception(f"Failed to get temporary credentials: {error_message}")
     
@@ -136,10 +136,14 @@ class CognitoAuthenticator:
             # Try to use current environment credentials if no fallback creds provided
             lambda_client = boto3.client('lambda', region_name=self.region)
         
+        # Get current AWS account ID dynamically
+        sts_client = boto3.client('sts', region_name=self.region)
+        account_id = sts_client.get_caller_identity()['Account']
+        
         payload = {
             'id_token': id_token,
             'duration_seconds': duration_hours * 3600,  # Convert hours to seconds
-            'role_arn': 'arn:aws:iam::767397975955:role/CognitoLongLivedRole'
+            'role_arn': f'arn:aws:iam::{account_id}:role/CognitoLongLivedRole'
         }
         
         try:
@@ -159,9 +163,11 @@ class CognitoAuthenticator:
             # Parse successful response
             credentials_data = json.loads(response_payload['body'])
             
-            # Convert expiration string back to datetime
+            # Convert expiration string back to datetime and convert to local time
             from datetime import datetime
             expiration = datetime.fromisoformat(credentials_data['expiration'].replace('Z', '+00:00'))
+            # Convert to local timezone for display consistency
+            expiration = expiration.astimezone()
             
             return {
                 'identity_id': credentials_data.get('user_id'),
@@ -222,73 +228,59 @@ class AWSProfileManager:
     def update_profile(self, profile_name, credentials, region):
         """Update AWS credentials profile"""
         # Update credentials file
-        credentials_config = configparser.ConfigParser()
-        
+        creds_parser = configparser.ConfigParser()
         if self.credentials_file.exists():
-            credentials_config.read(self.credentials_file)
+            creds_parser.read(self.credentials_file)
         
-        if profile_name not in credentials_config:
-            credentials_config.add_section(profile_name)
+        if not creds_parser.has_section(profile_name):
+            creds_parser.add_section(profile_name)
         
-        credentials_config[profile_name]['aws_access_key_id'] = credentials['access_key_id']
-        credentials_config[profile_name]['aws_secret_access_key'] = credentials['secret_access_key']
-        credentials_config[profile_name]['aws_session_token'] = credentials['session_token']
+        creds_parser.set(profile_name, 'aws_access_key_id', credentials['access_key_id'])
+        creds_parser.set(profile_name, 'aws_secret_access_key', credentials['secret_access_key'])
+        creds_parser.set(profile_name, 'aws_session_token', credentials['session_token'])
         
         with open(self.credentials_file, 'w') as f:
-            credentials_config.write(f)
+            creds_parser.write(f)
         
-        # Update config file for region
-        config_config = configparser.ConfigParser()
-        
+        # Update config file
+        config_parser = configparser.ConfigParser()
         if self.config_file.exists():
-            config_config.read(self.config_file)
+            config_parser.read(self.config_file)
         
-        profile_section = f'profile {profile_name}' if profile_name != 'default' else 'default'
+        # For non-default profiles, the section name should be "profile <name>"
+        config_section = f'profile {profile_name}' if profile_name != 'default' else profile_name
         
-        if profile_section not in config_config:
-            config_config.add_section(profile_section)
+        if not config_parser.has_section(config_section):
+            config_parser.add_section(config_section)
         
-        config_config[profile_section]['region'] = region
+        config_parser.set(config_section, 'region', region)
         
         with open(self.config_file, 'w') as f:
-            config_config.write(f)
-    
-    def show_credentials_info(self, profile_name, credentials):
-        """Display credentials information"""
-        click.echo(f"\n✅ Successfully updated AWS profile: {profile_name}")
-        click.echo(f"🔑 Identity ID: {credentials['identity_id']}")
-        local_expiration = credentials['expiration'].astimezone()
-        click.echo(f"🕒 Credentials expire at: {local_expiration.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-        click.echo("\n🚀 You can now use AWS CLI commands like:")
-        if profile_name == 'default':
-            click.echo("   aws s3 ls")
-            click.echo("   aws s3 sync s3://your-bucket ./local-folder")
-        else:
-            click.echo(f"   aws --profile {profile_name} s3 ls")
-            click.echo(f"   aws --profile {profile_name} s3 sync s3://your-bucket ./local-folder")
+            config_parser.write(f)
 
 
 def load_config():
     """Load configuration from environment variables or config file"""
     config = {}
     
-    # Try to load from environment variables
+    # Try environment variables first
     config['user_pool_id'] = os.getenv('COGNITO_USER_POOL_ID')
-    config['client_id'] = os.getenv('COGNITO_CLIENT_ID') 
+    config['client_id'] = os.getenv('COGNITO_CLIENT_ID')
     config['identity_pool_id'] = os.getenv('COGNITO_IDENTITY_POOL_ID')
     config['region'] = os.getenv('AWS_REGION')
     
-    # Try to load from config file
+    # Try config file
     config_file = Path.home() / '.cognito-cli-config.json'
     if config_file.exists():
         try:
             with open(config_file, 'r') as f:
                 file_config = json.load(f)
+                # Only use values from file if not already set from environment
                 for key, value in file_config.items():
-                    if not config.get(key):  # Only use file config if env var not set
+                    if not config.get(key):
                         config[key] = value
-        except Exception as e:
-            click.echo(f"Warning: Could not load config file: {e}", err=True)
+        except Exception:
+            pass  # Ignore config file errors, use environment variables
     
     return config
 
@@ -296,60 +288,8 @@ def load_config():
 def save_config(config):
     """Save configuration to config file"""
     config_file = Path.home() / '.cognito-cli-config.json'
-    try:
-        with open(config_file, 'w') as f:
-            json.dump(config, f, indent=2)
-        click.echo(f"✅ Configuration saved to {config_file}")
-    except Exception as e:
-        click.echo(f"Error saving configuration: {e}", err=True)
-
-
-def start_auto_refresh(auth, tokens, profile_manager, profile, region):
-    """Start automatic credential refresh every 50 minutes"""
-    import threading
-    import time
-    from datetime import datetime, timedelta
-    
-    def refresh_loop():
-        refresh_count = 0
-        while True:
-            try:
-                # Wait 50 minutes
-                time.sleep(50 * 60)
-                refresh_count += 1
-                
-                click.echo(f"\n🔄 Auto-refresh #{refresh_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                
-                # Get new credentials
-                new_credentials = auth.get_temporary_credentials(
-                    tokens['id_token'], 
-                    use_lambda_proxy=False,  # Always use Identity Pool for refresh
-                    duration_hours=1
-                )
-                
-                # Update profile
-                profile_manager.update_profile(profile, new_credentials, region)
-                
-                # Show expiration time
-                local_expiration = new_credentials['expiration'].astimezone()
-                click.echo(f"✅ Credentials refreshed! New expiration: {local_expiration.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-                
-            except Exception as e:
-                click.echo(f"⚠️ Auto-refresh failed: {e}")
-                click.echo(f"   Will retry in 50 minutes...")
-                continue
-    
-    # Start background thread
-    refresh_thread = threading.Thread(target=refresh_loop, daemon=True)
-    refresh_thread.start()
-    
-    try:
-        # Keep main thread alive
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        click.echo(f"\n👋 Auto-refresh stopped by user")
-        sys.exit(0)
+    with open(config_file, 'w') as f:
+        json.dump(config, f, indent=2)
 
 
 @click.group()
@@ -362,102 +302,127 @@ def cli():
 
 
 @cli.command()
-@click.option('--user-pool-id', prompt=True, help='Cognito User Pool ID')
-@click.option('--client-id', prompt=True, help='Cognito User Pool Client ID')
-@click.option('--identity-pool-id', prompt=True, help='Cognito Identity Pool ID')
-@click.option('--region', help='AWS Region (optional, will be inferred from User Pool ID)')
-def configure(user_pool_id, client_id, identity_pool_id, region):
+def configure():
     """Configure Cognito authentication settings"""
-    config = {
+    click.echo("🔧 Cognito CLI Configuration")
+    
+    config = load_config()
+    
+    # Get user pool configuration
+    user_pool_id = click.prompt(
+        'Cognito User Pool ID', 
+        default=config.get('user_pool_id', ''),
+        show_default=True if config.get('user_pool_id') else False
+    )
+    
+    client_id = click.prompt(
+        'Cognito User Pool Client ID',
+        default=config.get('client_id', ''),
+        show_default=True if config.get('client_id') else False
+    )
+    
+    identity_pool_id = click.prompt(
+        'Cognito Identity Pool ID',
+        default=config.get('identity_pool_id', ''),
+        show_default=True if config.get('identity_pool_id') else False
+    )
+    
+    # Region is optional, can be auto-detected from User Pool ID
+    region = click.prompt(
+        'AWS Region (optional, will auto-detect if not provided)',
+        default=config.get('region', ''),
+        show_default=False,
+        required=False
+    )
+    
+    # Save configuration
+    new_config = {
         'user_pool_id': user_pool_id,
         'client_id': client_id,
-        'identity_pool_id': identity_pool_id
+        'identity_pool_id': identity_pool_id,
     }
     
     if region:
-        config['region'] = region
+        new_config['region'] = region
     
-    save_config(config)
+    save_config(new_config)
+    
+    click.echo("✅ Configuration saved!")
+    click.echo(f"📁 Config file: {Path.home() / '.cognito-cli-config.json'}")
 
 
 @cli.command()
-@click.option('--username', '-u', help='Username (will prompt if not provided)')
-@click.option('--password', '-p', help='Password (will prompt securely if not provided)')
-@click.option('--profile', default='default', help='AWS profile name to update (default: default)')
-@click.option('--region', help='AWS region to set in profile')
-@click.option('--duration', default=12, help='Credential duration in hours (default: 12, max: 12)')
-@click.option('--auto-refresh', is_flag=True, help='Start background process to auto-refresh credentials every 50 minutes')
-@click.option('--use-lambda/--use-identity-pool', default=True, help='Use Lambda proxy for long-lived credentials vs Cognito Identity Pool (1 hour limit)')
-def login(username, password, profile, region, duration, auto_refresh, use_lambda):
+@click.option('--username', '-u', help='Username for authentication')
+@click.option('--profile', default='default', help='AWS profile name to update')
+@click.option('--no-lambda-proxy', is_flag=True, help='Skip Lambda proxy and use only Identity Pool credentials')
+@click.option('--duration', default=12, help='Credential duration in hours (Lambda proxy only)')
+def login(username, profile, no_lambda_proxy, duration):
     """Authenticate with Cognito and update AWS profile"""
-    
-    # Load configuration
     config = load_config()
     
+    # Check required configuration
     required_fields = ['user_pool_id', 'client_id', 'identity_pool_id']
     missing_fields = [field for field in required_fields if not config.get(field)]
     
     if missing_fields:
         click.echo(f"❌ Missing configuration: {', '.join(missing_fields)}")
-        click.echo("Run 'aws-cognito-auth configure' first or set environment variables:")
-        click.echo("  COGNITO_USER_POOL_ID")
-        click.echo("  COGNITO_CLIENT_ID") 
-        click.echo("  COGNITO_IDENTITY_POOL_ID")
+        click.echo("Please run 'configure' command first or set environment variables:")
+        for field in missing_fields:
+            env_var = f"COGNITO_{field.upper()}"
+            click.echo(f"   export {env_var}=<value>")
         sys.exit(1)
     
-    # Get credentials if not provided
+    # Get username if not provided
     if not username:
         username = click.prompt('Username')
     
-    if not password:
-        password = getpass.getpass('Password: ')
-    
-    # Set region
-    if not region:
-        region = config.get('region') or config['user_pool_id'].split('_')[0]
+    # Get password
+    password = getpass.getpass('Password: ')
     
     try:
-        click.echo("🔐 Authenticating with Cognito User Pool...")
-        
         # Initialize authenticator
-        auth = CognitoAuthenticator(
+        authenticator = CognitoAuthenticator(
             user_pool_id=config['user_pool_id'],
             client_id=config['client_id'],
             identity_pool_id=config['identity_pool_id'],
-            region=region
+            region=config.get('region')
         )
         
         # Authenticate user
-        tokens = auth.authenticate_user(username, password)
-        click.echo("✅ Successfully authenticated with User Pool")
+        print(f"🔐 Authenticating user: {username}")
+        tokens = authenticator.authenticate_user(username, password)
+        print("✅ User authenticated successfully")
         
         # Get temporary credentials
-        method = "Lambda proxy" if use_lambda else "Cognito Identity Pool"
-        click.echo(f"🎫 Getting temporary credentials via {method}...")
-        
-        credentials = auth.get_temporary_credentials(
+        use_lambda_proxy = not no_lambda_proxy
+        credentials = authenticator.get_temporary_credentials(
             tokens['id_token'], 
-            use_lambda_proxy=use_lambda, 
-            duration_hours=duration if use_lambda else 1  # Full duration for Lambda, 1 hour for Identity Pool
+            use_lambda_proxy=use_lambda_proxy,
+            duration_hours=duration
         )
-        click.echo("✅ Successfully obtained temporary credentials")
         
         # Update AWS profile
-        click.echo(f"📝 Updating AWS profile '{profile}'...")
         profile_manager = AWSProfileManager()
-        profile_manager.update_profile(profile, credentials, region)
-        profile_manager.show_credentials_info(profile, credentials)
+        profile_manager.update_profile(
+            profile_name=profile,
+            credentials=credentials,
+            region=authenticator.region
+        )
         
-        # Start auto-refresh if requested
-        if auto_refresh:
-            click.echo(f"\n🔄 Starting auto-refresh background process...")
-            click.echo(f"   Credentials will be refreshed every 50 minutes")
-            click.echo(f"   Keep this terminal open or the process will stop")
-            
-            start_auto_refresh(auth, tokens, profile_manager, profile, region)
+        print(f"✅ AWS profile '{profile}' updated successfully")
+        print(f"⏰ Credentials expire at: {credentials['expiration']}")
+        print(f"🔑 Identity ID: {credentials.get('identity_id', 'N/A')}")
+        
+        print(f"\n🎯 You can now use AWS CLI with profile '{profile}':")
+        if profile == 'default':
+            print("   aws s3 ls")
+            print("   aws sts get-caller-identity")
+        else:
+            print(f"   aws --profile {profile} s3 ls")
+            print(f"   aws --profile {profile} sts get-caller-identity")
         
     except Exception as e:
-        click.echo(f"❌ Error: {e}", err=True)
+        click.echo(f"❌ Authentication failed: {e}")
         sys.exit(1)
 
 
@@ -467,18 +432,21 @@ def status():
     config = load_config()
     
     click.echo("📋 Current Configuration:")
-    for key, value in config.items():
+    
+    # Show configuration (truncated for security)
+    for key in ['user_pool_id', 'client_id', 'identity_pool_id', 'region']:
+        value = config.get(key)
         if value:
             if key in ['user_pool_id', 'client_id', 'identity_pool_id']:
-                # Show partial values for security
-                masked_value = value[:8] + '...' + value[-4:] if len(value) > 12 else value
-                click.echo(f"  {key}: {masked_value}")
+                # Show first 8 and last 4 characters for security
+                display_value = f"{value[:8]}...{value[-4:]}" if len(value) > 12 else value
             else:
-                click.echo(f"  {key}: {value}")
+                display_value = value
+            click.echo(f"  {key}: {display_value}")
         else:
             click.echo(f"  {key}: Not set")
     
-    # Check AWS credentials file
+    # Show AWS credentials file status
     aws_dir = Path.home() / '.aws'
     credentials_file = aws_dir / 'credentials'
     
