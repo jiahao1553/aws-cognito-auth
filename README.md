@@ -1,159 +1,224 @@
-# AWS Cognito CLI Authoriser
+# AWS Cognito Authoriser
 
-A command-line tool that authenticates with AWS Cognito User Pool and Identity Pool to obtain temporary credentials and update your AWS CLI profile for seamless AWS CLI usage.
+A robust command-line tool that provides seamless authentication with AWS Cognito User Pool and Identity Pool, automatically obtaining temporary AWS credentials that work without requiring local AWS profile configuration.
 
-## Features
+## 🚀 Overview
 
-- ✅ **Secure password input**: Passwords are entered securely without echoing
-- ✅ **Profile management**: Updates standard AWS credentials and config files
-- ✅ **Multiple profiles**: Support for named profiles beyond default
-- ✅ **Configuration persistence**: Saves settings to `~/.cognito-cli-config.json`
-- ✅ **Environment variables**: Supports configuration via environment variables
-- ✅ **New password challenges**: Handles first-time login password reset
-- ✅ **Credential expiration info**: Shows when temporary credentials expire
-- ✅ **Regional support**: Automatically detects region from User Pool ID
+The AWS Cognito Authoriser solves a critical problem in AWS authentication workflows: obtaining temporary AWS credentials for CLI and SDK usage without requiring pre-configured AWS profiles or permanent credentials. It leverages AWS Cognito's User Pool for authentication and Identity Pool for credential exchange, with an optional Lambda proxy for extended credential duration.
 
-## Installation
+### Key Features
 
-1. **Clone or navigate to this directory:**
+- 🔐 **Secure Authentication**: Authenticates users via AWS Cognito User Pool
+- ⏱️ **Flexible Credential Duration**: 1-hour (Identity Pool) or up to 12-hour (Lambda proxy) credentials
+- 🛡️ **No AWS Profile Required**: Works in environments without pre-configured AWS credentials
+- 📦 **Multiple Service Integration**: Supports S3, DynamoDB, Lambda, and other AWS services
+- 🔧 **Automated Setup**: Helper scripts for complete AWS infrastructure deployment
+- 📊 **Role Management**: Built-in tools for managing IAM policies and permissions
+- 🎯 **Profile Management**: Updates standard AWS credentials and config files
+- 🔄 **Graceful Fallback**: Always provides working credentials with intelligent upgrading
+
+## 🏗️ Architecture
+
+The system consists of three main components:
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   CLI Tool      │───▶│ Cognito Identity │───▶│ Lambda Proxy    │
+│                 │    │ Pool (1hr creds) │    │ (12hr creds)    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│ User Pool Auth  │    │ IAM Role         │    │ Long-lived Role │
+│                 │    │ (Cognito Auth)   │    │ (Extended)      │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+### Authentication Flow
+
+1. **User Authentication**: Authenticate with Cognito User Pool using username/password
+2. **Identity Pool Exchange**: Exchange ID token for 1-hour AWS credentials via Identity Pool
+3. **Lambda Upgrade** (Optional): Attempt to upgrade to 12-hour credentials via Lambda proxy
+4. **Credential Storage**: Update AWS credentials file for seamless CLI/SDK usage
+
+## 📦 Installation
+
+### Prerequisites
+
+- Python 3.7+
+- AWS account with Cognito services
+- Basic understanding of AWS IAM roles and policies
+
+### Quick Start
+
+1. **Clone the repository:**
    ```bash
-   cd /Users/jiahao.tan/Repos/aws-authoriser
+   git clone <repository-url>
+   cd aws-authoriser
    ```
 
-2. **Install Python dependencies:**
+2. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Make the script executable:**
+3. **Configure the tool:**
    ```bash
-   chmod +x cognito_cli.py
+   python3 aws_cognito_auth.py configure
    ```
 
-4. **Optionally, create a symlink for global access:**
+4. **Login and get credentials:**
    ```bash
-   sudo ln -s $(pwd)/cognito_cli.py /usr/local/bin/aws-auth
+   python3 aws_cognito_auth.py login -u your-username
    ```
 
-## Prerequisites
+## ⚙️ Configuration
 
-**If you DON'T have a Cognito Identity Pool yet:**
-- 📖 See [`NO_IDENTITY_POOL.md`](NO_IDENTITY_POOL.md) for setup instructions
-- 🚀 Or run: `make setup-identity-pool` for automated setup
-
-**If you already have both User Pool AND Identity Pool:**
-- Continue with configuration below
-
-## Configuration
-
-### Method 1: Using the configure command
+### Method 1: Interactive Configuration
 ```bash
-python cognito_cli.py configure
+python3 aws_cognito_auth.py configure
 ```
 
-This will prompt you for:
-- Cognito User Pool ID (e.g., `us-east-1_xxxxxxxxx`)
-- Cognito User Pool Client ID
-- Cognito Identity Pool ID
-- AWS Region (optional)
-
-### Method 2: Using environment variables
+### Method 2: Environment Variables
 ```bash
 export COGNITO_USER_POOL_ID="us-east-1_xxxxxxxxx"
 export COGNITO_CLIENT_ID="your-client-id"
 export COGNITO_IDENTITY_POOL_ID="us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-export AWS_REGION="us-east-1"  # optional
+export AWS_REGION="us-east-1"
 ```
 
-## Usage
-
-### Basic login (updates default profile)
-```bash
-python cognito_cli.py login
+### Method 3: Configuration File
+Create `~/.cognito-cli-config.json`:
+```json
+{
+    "user_pool_id": "us-east-1_xxxxxxxxx",
+    "client_id": "your-client-id",
+    "identity_pool_id": "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "region": "us-east-1"
+}
 ```
 
-### Login with specific username
+## 🎯 Usage
+
+### Basic Commands
+
 ```bash
-python cognito_cli.py login -u your-username
+# Check configuration status
+python3 aws_cognito_auth.py status
+
+# Login with username prompt
+python3 aws_cognito_auth.py login
+
+# Login with specific username
+python3 aws_cognito_auth.py login -u your-username
+
+# Login and update specific AWS profile
+python3 aws_cognito_auth.py login -u your-username --profile my-profile
+
+# Get help
+python3 aws_cognito_auth.py --help
 ```
 
-### Login and update a specific AWS profile
+### Example Workflow
+
 ```bash
-python cognito_cli.py login --profile my-cognito-profile
-```
+# 1. Configure once
+python3 aws_cognito_auth.py configure
 
-### Check configuration status
-```bash
-python cognito_cli.py status
-```
+# 2. Login and get credentials
+python3 aws_cognito_auth.py login -u myuser
 
-### Get help
-```bash
-python cognito_cli.py --help
-python cognito_cli.py login --help
-```
+# Sample output:
+# 🎫 Getting temporary credentials from Cognito Identity Pool...
+# ✅ Successfully obtained Identity Pool credentials (expires at 2025-08-12 14:30:00)
+# 🎫 Attempting to upgrade to longer-lived credentials via Lambda proxy...
+# ✅ Successfully upgraded to longer-lived credentials (expires at 2025-08-13 01:30:00)
 
-## After Authentication
-
-Once authenticated, you can use standard AWS CLI commands:
-
-### Using default profile
-```bash
+# 3. Use AWS CLI commands
 aws s3 ls
-aws s3 sync s3://your-bucket ./local-folder
 aws sts get-caller-identity
+aws s3 sync s3://my-bucket/my-folder ./local-folder
 ```
 
-### Using named profile
-```bash
-aws --profile my-cognito-profile s3 ls
-aws --profile my-cognito-profile s3 sync s3://your-bucket ./local-folder
-```
+## 🛠️ AWS Infrastructure Setup
 
-## Managing IAM Roles and Policies
+### Option 1: Automated Setup (Recommended)
 
-The project includes a role manager tool to help you configure the Cognito Identity Pool authenticated role:
-
-### Role Manager Commands
+Use the provided deployment scripts:
 
 ```bash
-# View current role and policies
-python role_manager.py info
+# Deploy complete infrastructure
+python3 deploy_lambda.py --create-user
 
-# Create S3 policy automatically (user-specific folders)
-python role_manager.py create-s3-policy --bucket your-bucket-name
+# Set up IAM user for Lambda proxy
+python3 setup_iam_user.py
 
-# Create S3 policy automatically (full bucket access)
-python role_manager.py create-s3-policy --bucket your-bucket-name --full-access
-
-# Apply a custom policy from file
-python role_manager.py apply-policy --policy-file policies/s3-user-folders.json --policy-name MyS3Policy
-
-# Validate your setup
-python role_manager.py validate
+# Deploy Identity Pool
+python3 identity_pool_setup.py
 ```
 
-### Policy Templates
+### Option 2: Manual Setup
 
-The `policies/` directory contains ready-to-use IAM policy templates:
+If you prefer to set up AWS infrastructure manually, follow these steps:
 
-- `s3-user-folders.json` - S3 access with user isolation
-- `s3-full-bucket.json` - Full S3 bucket access
-- `multi-service.json` - Access to S3, DynamoDB, API Gateway, and SES
+#### 1. Cognito User Pool
 
-See `policies/README.md` for detailed information on using these templates.
+Create a User Pool with the following settings:
+- **Sign-in options**: Username
+- **Password policy**: As per your security requirements
+- **MFA**: Optional but recommended
+- **App client**: 
+  - Client type: Public client
+  - Authentication flows: `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH`
 
-## Configuration Files
+Required information:
+- User Pool ID (format: `us-east-1_xxxxxxxxx`)
+- App Client ID
 
-The tool creates/updates these files:
-- `~/.aws/credentials` - AWS credentials
-- `~/.aws/config` - AWS configuration 
-- `~/.cognito-cli-config.json` - Tool configuration
+#### 2. Cognito Identity Pool
 
-## IAM Requirements
+Create an Identity Pool with:
+- **Authentication providers**: Cognito User Pool
+- **User Pool ID**: Your User Pool ID from step 1
+- **App Client ID**: Your App Client ID from step 1
 
-Your Cognito Identity Pool's authenticated role needs appropriate permissions for the AWS services you want to access. For S3 access, ensure the role has policies like:
+Required information:
+- Identity Pool ID (format: `us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
+#### 3. IAM Roles
+
+The Identity Pool creates two roles automatically. You need to configure the **authenticated role**:
+
+**Minimum permissions for Cognito authenticated role:**
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "cognito-identity:GetCredentialsForIdentity",
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "lambda:InvokeFunction",
+            "Resource": "arn:aws:lambda:REGION:ACCOUNT:function:cognito-credential-proxy"
+        }
+    ]
+}
+```
+
+#### 4. Lambda Proxy (Optional - for 12-hour credentials)
+
+Create a Lambda function with:
+- **Runtime**: Python 3.9+
+- **Code**: Use `lambda_credential_proxy.py`
+- **Environment variables**:
+  - `IAM_USER_ACCESS_KEY_ID`: IAM user access key ID
+  - `IAM_USER_SECRET_ACCESS_KEY`: IAM user secret access key
+  - `DEFAULT_ROLE_ARN`: Long-lived role ARN
+
+**IAM User for Lambda** (minimum permissions):
 ```json
 {
     "Version": "2012-10-17",
@@ -161,27 +226,29 @@ Your Cognito Identity Pool's authenticated role needs appropriate permissions fo
         {
             "Effect": "Allow",
             "Action": [
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:DeleteObject"
+                "sts:AssumeRole",
+                "sts:TagSession"
             ],
-            "Resource": [
-                "arn:aws:s3:::your-bucket/${cognito-identity.amazonaws.com:sub}/*"
-            ]
-        },
+            "Resource": "arn:aws:iam::ACCOUNT:role/CognitoLongLivedRole"
+        }
+    ]
+}
+```
+
+**Long-lived Role Trust Policy**:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
         {
             "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket"
-            ],
-            "Resource": [
-                "arn:aws:s3:::your-bucket"
-            ],
+            "Principal": {
+                "AWS": "arn:aws:iam::ACCOUNT:user/cognito-proxy-user"
+            },
+            "Action": "sts:AssumeRole",
             "Condition": {
-                "StringLike": {
-                    "s3:prefix": [
-                        "${cognito-identity.amazonaws.com:sub}/*"
-                    ]
+                "StringEquals": {
+                    "aws:RequestedRegion": ["us-east-1", "us-west-2", "ap-southeast-1"]
                 }
             }
         }
@@ -189,99 +256,226 @@ Your Cognito Identity Pool's authenticated role needs appropriate permissions fo
 }
 ```
 
-## Migration from Web App
+## 📋 Role and Policy Management
 
-If you're migrating from the original web application, you can use the same Cognito configuration:
+### Role Manager Tool
 
-```javascript
-// From your original main.js:
-var userPoolId = "us-east-1_xxxxxxxxx";     // → COGNITO_USER_POOL_ID
-var clientId = "your-client-id";            // → COGNITO_CLIENT_ID  
-var identityPoolId = "us-east-1:xxxx...";   // → COGNITO_IDENTITY_POOL_ID
-var s3bucket = "your-bucket-name";          // → Use with AWS CLI commands
-```
+The project includes a comprehensive role manager for handling IAM policies:
 
-## Examples
-
-### Complete workflow example:
 ```bash
-# Configure once
-python cognito_cli.py configure
+# View current role information
+python3 role_manager.py info
 
-# Login
-python cognito_cli.py login -u myusername
+# Create S3 policy with user isolation
+python3 role_manager.py create-s3-policy --bucket my-bucket --user-specific
 
-# Use AWS CLI
-aws s3 ls s3://my-bucket
-aws s3 sync s3://my-bucket/my-folder ./local-folder
+# Create S3 policy with full bucket access
+python3 role_manager.py create-s3-policy --bucket my-bucket --full-access
+
+# Apply custom policy from file
+python3 role_manager.py apply-policy --policy-file my-policy.json --policy-name MyPolicy
+
+# Validate current setup
+python3 role_manager.py validate
 ```
 
-### Using with multiple profiles:
+### Service-Specific Permissions
+
+#### S3 Access (User Isolation)
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+            "Resource": "arn:aws:s3:::BUCKET/${cognito-identity.amazonaws.com:sub}/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": "s3:ListBucket",
+            "Resource": "arn:aws:s3:::BUCKET",
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": "${cognito-identity.amazonaws.com:sub}/*"
+                }
+            }
+        }
+    ]
+}
+```
+
+#### DynamoDB Access
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:GetItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Query"
+            ],
+            "Resource": "arn:aws:dynamodb:REGION:ACCOUNT:table/TABLE_NAME",
+            "Condition": {
+                "ForAllValues:StringEquals": {
+                    "dynamodb:LeadingKeys": "${cognito-identity.amazonaws.com:sub}"
+                }
+            }
+        }
+    ]
+}
+```
+
+#### Lambda Execution
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "lambda:InvokeFunction",
+            "Resource": [
+                "arn:aws:lambda:REGION:ACCOUNT:function:user-function-*",
+                "arn:aws:lambda:REGION:ACCOUNT:function:cognito-credential-proxy"
+            ]
+        }
+    ]
+}
+```
+
+## 🔧 Advanced Configuration
+
+### Environment Variables
+
 ```bash
-# Login to different profile
-python cognito_cli.py login -u user1 --profile dev-env
+# Cognito Configuration
+export COGNITO_USER_POOL_ID="us-east-1_xxxxxxxxx"
+export COGNITO_CLIENT_ID="your-client-id"
+export COGNITO_IDENTITY_POOL_ID="us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+export AWS_REGION="us-east-1"
 
-# Login to another profile  
-python cognito_cli.py login -u user2 --profile prod-env
-
-# Use different profiles
-aws --profile dev-env s3 ls
-aws --profile prod-env s3 ls
+# Note: Lambda proxy credentials are configured in the Lambda function environment,
+# not in the client application for security reasons
 ```
 
-## Troubleshooting
+### Multiple Environment Setup
 
-### Common Issues
+```bash
+# Development environment
+python3 aws_cognito_auth.py login -u dev-user --profile development
 
-1. **"Missing configuration" error**
-   - Run `python cognito_cli.py configure` or set environment variables
+# Production environment  
+python3 aws_cognito_auth.py login -u prod-user --profile production
 
-2. **"Invalid username or password"**
-   - Verify credentials in AWS Cognito console
-   - Check if user needs to reset password
+# Use with different profiles
+aws --profile development s3 ls
+aws --profile production s3 ls
+```
 
-3. **"Access denied" when using AWS commands**
-   - Check IAM policies on the Identity Pool's authenticated role
-   - Verify the role has permissions for the AWS services you're accessing
+## 📊 Monitoring and Logging
 
-4. **Credentials expire**
-   - Re-run the login command to refresh credentials
-   - Temporary credentials typically last 1 hour
+### CloudWatch Logs
+
+Monitor Lambda proxy execution:
+```bash
+aws logs tail /aws/lambda/cognito-credential-proxy --follow
+```
 
 ### Debug Mode
 
-For troubleshooting, you can enable AWS SDK debug logging:
-
+Enable detailed logging:
 ```bash
 export BOTO_DEBUG=1
-python cognito_cli.py login
+python3 aws_cognito_auth.py login -u username
 ```
 
-## Security Notes
+## ❗ Troubleshooting
 
-- Passwords are never stored or logged
-- Configuration file excludes sensitive credentials
-- Temporary credentials automatically expire
-- Identity-based access control via IAM policies
-- Uses AWS Signature Version 4 for all API calls
+### Common Issues
 
-## Development
+| Issue | Solution |
+|-------|----------|
+| "Missing configuration" | Run `configure` command or set environment variables |
+| "Invalid username or password" | Verify credentials in Cognito console; check if password reset needed |
+| "Access denied" with AWS commands | Check IAM policies on Identity Pool authenticated role |
+| "Lambda proxy failed" | Check Lambda function logs; verify IAM user permissions |
+| "Unable to locate credentials" | Ensure fallback credentials are configured; check Lambda environment variables |
 
-### Project Structure
+### Error Messages
+
+**"Identity Pool configuration error"**
+- Solution: Configure Identity Pool to accept tokens from your User Pool
+- Check: AWS Console → Cognito → Identity Pool → Authentication providers
+
+**"AssumeRoleWithWebIdentity" access denied**
+- Solution: Update role trust policy to allow web identity federation
+- Check: IAM role trust policy for Identity Pool authenticated role
+
+**"Lambda function not found"**
+- Solution: Deploy Lambda function using `deploy_lambda.py`
+- Verify: Function name is `cognito-credential-proxy`
+
+### Testing Setup
+
+```bash
+# Test configuration
+python3 aws_cognito_auth.py status
+
+# Test authentication (will show detailed error messages)
+python3 aws_cognito_auth.py login -u test-user
+
+# Test AWS access
+aws sts get-caller-identity
+aws s3 ls
 ```
-aws-authoriser/
-├── cognito_cli.py      # Main CLI application
-├── requirements.txt    # Python dependencies
-├── README.md          # This file
-└── setup.py           # Optional: for pip installation
-```
 
-### Adding Features
-The code is structured with separate classes for:
-- `CognitoAuthenticator`: Handles Cognito authentication
-- `AWSProfileManager`: Manages AWS credential files
-- CLI commands using Click framework
+## 🔒 Security Considerations
 
-## License
+- **Credentials Storage**: Temporary credentials are stored in standard AWS credentials file
+- **Password Handling**: Passwords are never logged or stored persistently
+- **Network Security**: All communications use HTTPS/TLS
+- **Access Control**: IAM policies enforce least-privilege access
+- **Credential Expiration**: Automatic credential expiration (1-12 hours)
+- **Audit Trail**: CloudTrail logs all AWS API calls made with temporary credentials
 
-This project is provided as-is for educational and development purposes.
+## 📚 Additional Resources
+
+### Project Files
+
+- `aws_cognito_auth.py` - Main CLI application
+- `role_manager.py` - IAM role and policy management
+- `deploy_lambda.py` - Lambda function deployment
+- `lambda_credential_proxy.py` - Lambda proxy function
+- `setup_iam_user.py` - IAM user creation for Lambda
+
+### AWS Services Used
+
+- **AWS Cognito User Pool**: User authentication and management
+- **AWS Cognito Identity Pool**: Temporary credential exchange
+- **AWS Lambda**: Extended credential duration (optional)
+- **AWS IAM**: Role and policy management
+- **AWS STS**: Security Token Service for temporary credentials
+
+## 📄 License
+
+This project is provided as-is for educational and development purposes. Please review and adapt the code according to your security requirements before using in production environments.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please ensure:
+- Follow existing code style and patterns
+- Add appropriate error handling
+- Update documentation for new features
+- Test thoroughly with different AWS configurations
+
+---
+
+**⚡ Quick Start Summary:**
+1. `pip install -r requirements.txt`
+2. `python3 aws_cognito_auth.py configure`
+3. `python3 aws_cognito_auth.py login -u username`
+4. Use AWS CLI commands normally!

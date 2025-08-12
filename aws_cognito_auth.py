@@ -80,47 +80,134 @@ class CognitoAuthenticator:
             else:
                 raise Exception(f"Authentication failed: {e.response['Error']['Message']}")
     
-    def get_temporary_credentials(self, id_token):
+    def get_temporary_credentials(self, id_token, use_lambda_proxy=True, duration_hours=12):
         """Exchange ID token for temporary AWS credentials"""
         try:
-            # Create the login map for the identity pool
-            logins_map = {
-                f'cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}': id_token
-            }
+            # Step 1: Always get 1-hour credentials from Identity Pool first
+            print("🎫 Getting temporary credentials from Cognito Identity Pool...")
+            identity_pool_creds = self._get_cognito_identity_credentials(id_token)
+            print(f"✅ Successfully obtained Identity Pool credentials (expires at {identity_pool_creds['expiration']})")
             
-            # Get identity ID
-            identity_response = self.cognito_identity.get_id(
-                IdentityPoolId=self.identity_pool_id,
-                Logins=logins_map
-            )
-            
-            identity_id = identity_response['IdentityId']
-            # Get temporary credentials
-            credentials_response = self.cognito_identity.get_credentials_for_identity(
-                IdentityId=identity_id,
-                Logins=logins_map
-            )
-            
-            credentials = credentials_response['Credentials']
-            
-            return {
-                'identity_id': identity_id,
-                'access_key_id': credentials['AccessKeyId'],
-                'secret_access_key': credentials['SecretKey'],
-                'session_token': credentials['SessionToken'],
-                'expiration': credentials['Expiration']
-            }
-            
+            # Step 2: If Lambda proxy is enabled, try to upgrade to longer-lived credentials
+            if use_lambda_proxy:
+                try:
+                    print("🎫 Attempting to upgrade to longer-lived credentials via Lambda proxy...")
+                    lambda_creds = self._get_lambda_credentials(id_token, duration_hours, fallback_creds=identity_pool_creds)
+                    print(f"✅ Successfully upgraded to longer-lived credentials (expires at {lambda_creds['expiration']})")
+                    return lambda_creds
+                except Exception as lambda_error:
+                    print(f"⚠️  Lambda proxy failed: {lambda_error}")
+                    print("📝 Keeping Identity Pool credentials (1 hour limit)")
+                    return identity_pool_creds
+            else:
+                return identity_pool_creds
+                
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = e.response['Error']['Message']
+            
+            print(f"Debug - Error Code: {error_code}")
+            print(f"Debug - Error Message: {error_message}")
             
             if 'not from a supported provider' in error_message:
                 raise Exception(f"Identity Pool configuration error: {error_message}\n"
                                f"Solution: Your Identity Pool (ID: {self.identity_pool_id}) needs to be configured to accept tokens from your User Pool (ID: {self.user_pool_id}).\n"
                                f"Check AWS Console -> Cognito -> Identity Pool -> Authentication providers -> Cognito User Pool")
+            elif error_code == 'AccessDenied' and 'AssumeRoleWithWebIdentity' in error_message:
+                raise Exception(f"IAM Role Trust Policy Issue: {error_message}\n"
+                               f"The role trust policy needs to be updated to allow web identity federation.\n"
+                               f"Check the trust policy of role: arn:aws:iam::897039363324:role/service-role/s3-access-identitypool-role")
             else:
                 raise Exception(f"Failed to get temporary credentials: {error_message}")
+    
+    def _get_lambda_credentials(self, id_token, duration_hours=12, fallback_creds=None):
+        """Get long-lived credentials via Lambda proxy"""
+        # Create Lambda client using the Identity Pool credentials we already have
+        if fallback_creds:
+            # Use the Identity Pool credentials to invoke Lambda
+            lambda_client = boto3.client(
+                'lambda',
+                region_name=self.region,
+                aws_access_key_id=fallback_creds['access_key_id'],
+                aws_secret_access_key=fallback_creds['secret_access_key'],
+                aws_session_token=fallback_creds['session_token']
+            )
+        else:
+            # Try to use current environment credentials if no fallback creds provided
+            lambda_client = boto3.client('lambda', region_name=self.region)
+        
+        payload = {
+            'id_token': id_token,
+            'duration_seconds': duration_hours * 3600,  # Convert hours to seconds
+            'role_arn': 'arn:aws:iam::767397975955:role/CognitoLongLivedRole'
+        }
+        
+        try:
+            response = lambda_client.invoke(
+                FunctionName='cognito-credential-proxy',
+                InvocationType='RequestResponse',
+                Payload=json.dumps(payload)
+            )
+            
+            # Parse response
+            response_payload = json.loads(response['Payload'].read())
+            
+            if response_payload.get('statusCode') != 200:
+                error_body = json.loads(response_payload.get('body', '{}'))
+                raise Exception(f"Lambda error: {error_body.get('error', 'Unknown error')}")
+            
+            # Parse successful response
+            credentials_data = json.loads(response_payload['body'])
+            
+            # Convert expiration string back to datetime
+            from datetime import datetime
+            expiration = datetime.fromisoformat(credentials_data['expiration'].replace('Z', '+00:00'))
+            
+            return {
+                'identity_id': credentials_data.get('user_id'),
+                'access_key_id': credentials_data['access_key_id'],
+                'secret_access_key': credentials_data['secret_access_key'],
+                'session_token': credentials_data['session_token'],
+                'expiration': expiration,
+                'username': credentials_data.get('username')
+            }
+            
+        except lambda_client.exceptions.ResourceNotFoundException:
+            raise Exception("Lambda function 'cognito-credential-proxy' not found. Please deploy it first using deploy_lambda.py")
+        except Exception as e:
+            # Don't fallback here - let the main method handle it
+            raise e
+    
+    def _get_cognito_identity_credentials(self, id_token):
+        """Get 1-hour credentials via Cognito Identity Pool"""
+        # Create the login map for the identity pool
+        logins_map = {
+            f'cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}': id_token
+        }
+        
+        # Get identity ID
+        identity_response = self.cognito_identity.get_id(
+            IdentityPoolId=self.identity_pool_id,
+            Logins=logins_map
+        )
+        
+        identity_id = identity_response['IdentityId']
+        # Get temporary credentials
+        credentials_response = self.cognito_identity.get_credentials_for_identity(
+            IdentityId=identity_id,
+            Logins=logins_map
+        )
+        
+        credentials = credentials_response['Credentials']
+        
+        
+        return {
+            'identity_id': identity_id,
+            'access_key_id': credentials['AccessKeyId'],
+            'secret_access_key': credentials['SecretKey'],
+            'session_token': credentials['SessionToken'],
+            'expiration': credentials['Expiration']
+        }
 
 
 class AWSProfileManager:
@@ -170,8 +257,9 @@ class AWSProfileManager:
         """Display credentials information"""
         click.echo(f"\n✅ Successfully updated AWS profile: {profile_name}")
         click.echo(f"🔑 Identity ID: {credentials['identity_id']}")
-        click.echo(f"🕒 Credentials expire at: {credentials['expiration'].strftime('%Y-%m-%d %H:%M:%S UTC')}")
-        click.echo(f"\n🚀 You can now use AWS CLI commands like:")
+        local_expiration = credentials['expiration'].astimezone()
+        click.echo(f"🕒 Credentials expire at: {local_expiration.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        click.echo("\n🚀 You can now use AWS CLI commands like:")
         if profile_name == 'default':
             click.echo("   aws s3 ls")
             click.echo("   aws s3 sync s3://your-bucket ./local-folder")
@@ -216,6 +304,54 @@ def save_config(config):
         click.echo(f"Error saving configuration: {e}", err=True)
 
 
+def start_auto_refresh(auth, tokens, profile_manager, profile, region):
+    """Start automatic credential refresh every 50 minutes"""
+    import threading
+    import time
+    from datetime import datetime, timedelta
+    
+    def refresh_loop():
+        refresh_count = 0
+        while True:
+            try:
+                # Wait 50 minutes
+                time.sleep(50 * 60)
+                refresh_count += 1
+                
+                click.echo(f"\n🔄 Auto-refresh #{refresh_count} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # Get new credentials
+                new_credentials = auth.get_temporary_credentials(
+                    tokens['id_token'], 
+                    use_lambda_proxy=False,  # Always use Identity Pool for refresh
+                    duration_hours=1
+                )
+                
+                # Update profile
+                profile_manager.update_profile(profile, new_credentials, region)
+                
+                # Show expiration time
+                local_expiration = new_credentials['expiration'].astimezone()
+                click.echo(f"✅ Credentials refreshed! New expiration: {local_expiration.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+                
+            except Exception as e:
+                click.echo(f"⚠️ Auto-refresh failed: {e}")
+                click.echo(f"   Will retry in 50 minutes...")
+                continue
+    
+    # Start background thread
+    refresh_thread = threading.Thread(target=refresh_loop, daemon=True)
+    refresh_thread.start()
+    
+    try:
+        # Keep main thread alive
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        click.echo(f"\n👋 Auto-refresh stopped by user")
+        sys.exit(0)
+
+
 @click.group()
 def cli():
     """Cognito CLI Authentication Tool
@@ -249,7 +385,10 @@ def configure(user_pool_id, client_id, identity_pool_id, region):
 @click.option('--password', '-p', help='Password (will prompt securely if not provided)')
 @click.option('--profile', default='default', help='AWS profile name to update (default: default)')
 @click.option('--region', help='AWS region to set in profile')
-def login(username, password, profile, region):
+@click.option('--duration', default=12, help='Credential duration in hours (default: 12, max: 12)')
+@click.option('--auto-refresh', is_flag=True, help='Start background process to auto-refresh credentials every 50 minutes')
+@click.option('--use-lambda/--use-identity-pool', default=True, help='Use Lambda proxy for long-lived credentials vs Cognito Identity Pool (1 hour limit)')
+def login(username, password, profile, region, duration, auto_refresh, use_lambda):
     """Authenticate with Cognito and update AWS profile"""
     
     # Load configuration
@@ -260,7 +399,7 @@ def login(username, password, profile, region):
     
     if missing_fields:
         click.echo(f"❌ Missing configuration: {', '.join(missing_fields)}")
-        click.echo("Run 'python cognito_cli.py configure' first or set environment variables:")
+        click.echo("Run 'aws-cognito-auth configure' first or set environment variables:")
         click.echo("  COGNITO_USER_POOL_ID")
         click.echo("  COGNITO_CLIENT_ID") 
         click.echo("  COGNITO_IDENTITY_POOL_ID")
@@ -293,8 +432,14 @@ def login(username, password, profile, region):
         click.echo("✅ Successfully authenticated with User Pool")
         
         # Get temporary credentials
-        click.echo("🎫 Getting temporary credentials from Identity Pool...")
-        credentials = auth.get_temporary_credentials(tokens['id_token'])
+        method = "Lambda proxy" if use_lambda else "Cognito Identity Pool"
+        click.echo(f"🎫 Getting temporary credentials via {method}...")
+        
+        credentials = auth.get_temporary_credentials(
+            tokens['id_token'], 
+            use_lambda_proxy=use_lambda, 
+            duration_hours=duration if use_lambda else 1  # Full duration for Lambda, 1 hour for Identity Pool
+        )
         click.echo("✅ Successfully obtained temporary credentials")
         
         # Update AWS profile
@@ -302,6 +447,14 @@ def login(username, password, profile, region):
         profile_manager = AWSProfileManager()
         profile_manager.update_profile(profile, credentials, region)
         profile_manager.show_credentials_info(profile, credentials)
+        
+        # Start auto-refresh if requested
+        if auto_refresh:
+            click.echo(f"\n🔄 Starting auto-refresh background process...")
+            click.echo(f"   Credentials will be refreshed every 50 minutes")
+            click.echo(f"   Keep this terminal open or the process will stop")
+            
+            start_auto_refresh(auth, tokens, profile_manager, profile, region)
         
     except Exception as e:
         click.echo(f"❌ Error: {e}", err=True)

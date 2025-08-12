@@ -360,7 +360,7 @@ def create_full_setup(user_pool_id, client_id, identity_pool_name, bucket_name, 
         
         click.echo(f"\n🧪 Next Steps:")
         click.echo(f"1. Test authentication:")
-        click.echo(f"   python3 cognito_cli.py login -u your-username")
+        click.echo(f"   aws-cognito-auth login -u your-username")
         click.echo(f"")
         click.echo(f"2. Test AWS access:")
         click.echo(f"   aws sts get-caller-identity")

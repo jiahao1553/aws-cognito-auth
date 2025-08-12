@@ -180,7 +180,7 @@ def info(identity_pool_id):
         identity_pool_id = config.get('identity_pool_id')
         
         if not identity_pool_id:
-            click.echo("❌ Identity Pool ID not found. Provide --identity-pool-id or run cognito_cli.py configure first")
+            click.echo("❌ Identity Pool ID not found. Provide --identity-pool-id or run aws-cognito-auth configure first")
             sys.exit(1)
     
     try:
@@ -235,7 +235,7 @@ def create_s3_policy_cmd(identity_pool_id, bucket, user_specific, policy_name, d
         identity_pool_id = config.get('identity_pool_id')
         
         if not identity_pool_id:
-            click.echo("❌ Identity Pool ID not found. Provide --identity-pool-id or run cognito_cli.py configure first")
+            click.echo("❌ Identity Pool ID not found. Provide --identity-pool-id or run aws-cognito-auth configure first")
             sys.exit(1)
     
     try:
@@ -261,7 +261,7 @@ def create_s3_policy_cmd(identity_pool_id, bucket, user_specific, policy_name, d
         
         click.echo(f"✅ Policy applied successfully!")
         click.echo(f"\n🧪 Test your access with:")
-        click.echo(f"   python3 cognito_cli.py login -u your-username")
+        click.echo(f"   aws-cognito-auth login -u your-username")
         click.echo(f"   aws s3 ls s3://{bucket}/")
         
     except Exception as e:
@@ -282,7 +282,7 @@ def apply_policy(identity_pool_id, policy_file, policy_name):
         identity_pool_id = config.get('identity_pool_id')
         
         if not identity_pool_id:
-            click.echo("❌ Identity Pool ID not found. Provide --identity-pool-id or run cognito_cli.py configure first")
+            click.echo("❌ Identity Pool ID not found. Provide --identity-pool-id or run aws-cognito-auth configure first")
             sys.exit(1)
     
     try:
@@ -315,7 +315,7 @@ def validate():
     identity_pool_id = config.get('identity_pool_id')
     
     if not identity_pool_id:
-        click.echo("❌ Identity Pool ID not found. Run cognito_cli.py configure first")
+        click.echo("❌ Identity Pool ID not found. Run aws-cognito-auth configure first")
         sys.exit(1)
     
     try:
