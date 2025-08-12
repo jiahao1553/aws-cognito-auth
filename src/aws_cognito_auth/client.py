@@ -126,20 +126,27 @@ class CognitoAuthenticator:
         if fallback_creds:
             # Use the Identity Pool credentials to invoke Lambda
             lambda_client = boto3.client(
-                'lambda',
+                "lambda",
                 region_name=self.region,
-                aws_access_key_id=fallback_creds['access_key_id'],
-                aws_secret_access_key=fallback_creds['secret_access_key'],
-                aws_session_token=fallback_creds['session_token']
+                aws_access_key_id=fallback_creds.get("access_key_id"),
+                aws_secret_access_key=fallback_creds.get("secret_access_key"),
+                aws_session_token=fallback_creds.get("session_token"),
+            )
+            # Get current AWS account ID dynamically
+            sts_client = boto3.client(
+                "sts",
+                region_name=self.region,
+                aws_access_key_id=fallback_creds.get("access_key_id"),
+                aws_secret_access_key=fallback_creds.get("secret_access_key"),
+                aws_session_token=fallback_creds.get("session_token"),
             )
         else:
             # Try to use current environment credentials if no fallback creds provided
-            lambda_client = boto3.client('lambda', region_name=self.region)
-        
-        # Get current AWS account ID dynamically
-        sts_client = boto3.client('sts', region_name=self.region)
-        account_id = sts_client.get_caller_identity()['Account']
-        
+            lambda_client = boto3.client("lambda", region_name=self.region)
+            sts_client = boto3.client("sts", region_name=self.region)
+
+        account_id = sts_client.get_caller_identity()["Account"]
+
         payload = {
             'id_token': id_token,
             'duration_seconds': duration_hours * 3600,  # Convert hours to seconds
