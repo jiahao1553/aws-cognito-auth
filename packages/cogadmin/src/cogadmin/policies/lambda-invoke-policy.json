@@ -1,0 +1,13 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": [
+        "arn:aws:lambda:{region}:{account_id}:function:user-function-*",
+        "arn:aws:lambda:{region}:{account_id}:function:cognito-credential-proxy"
+      ]
+    }
+  ]
+}

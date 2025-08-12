@@ -43,9 +43,16 @@ The system consists of three main components:
 
 ## 📦 Installation
 
+### Package Overview
+
+AWS Cognito Authoriser is split into two PyPI packages:
+
+- **`cogauth`** - Core authentication tool for getting temporary AWS credentials
+- **`cogadmin`** - Administrative tool for managing AWS infrastructure and policies
+
 ### Prerequisites
 
-- Python 3.7+
+- Python 3.9+
 - AWS account with Cognito services
 - Basic understanding of AWS IAM roles and policies
 
@@ -57,26 +64,30 @@ The system consists of three main components:
    cd aws-authoriser
    ```
 
-2. **Install the package:**
+2. **Install the packages:**
    ```bash
-   pip install -e .
+   # For authentication only
+   pip install cogauth
+   
+   # For administration features (includes cogauth)
+   pip install cogadmin
    ```
 
 3. **Configure the tool:**
    ```bash
-   aws-cognito-auth configure
+   cogauth configure
    ```
 
 4. **Login and get credentials:**
    ```bash
-   aws-cognito-auth login -u your-username
+   cogauth login -u your-username
    ```
 
 ## ⚙️ Configuration
 
 ### Method 1: Interactive Configuration
 ```bash
-aws-cognito-auth configure
+cogauth configure
 ```
 
 ### Method 2: Environment Variables
@@ -104,69 +115,69 @@ Create `~/.cognito-cli-config.json`:
 
 ```bash
 # Check configuration status
-aws-cognito-auth status
+cogauth status
 
 # Configure authentication settings
-aws-cognito-auth configure
+cogauth configure
 
 # Login with username prompt
-aws-cognito-auth login
+cogauth login
 
 # Login with specific username
-aws-cognito-auth login -u your-username
+cogauth login -u your-username
 
 # Login and update specific AWS profile
-aws-cognito-auth login -u your-username --profile my-profile
+cogauth login -u your-username --profile my-profile
 
 # Skip Lambda proxy and use only Identity Pool credentials
-aws-cognito-auth login -u your-username --no-lambda-proxy
+cogauth login -u your-username --no-lambda-proxy
 
 # Set credential duration (Lambda proxy only)
-aws-cognito-auth login -u your-username --duration 8
+cogauth login -u your-username --duration 8
 
 # Get help
-aws-cognito-auth --help
+cogauth --help
 ```
 
 ### Administrative Commands
 
 ```bash
 # View Identity Pool role information
-aws-cognito-admin role info
+cogadmin role info
 
 # Create S3 access policy for a bucket
-aws-cognito-admin policy create-s3-policy --bucket-name my-bucket
+cogadmin policy create-s3-policy --bucket-name my-bucket
 
 # Create S3 policy with user isolation (Cognito identity-based)
-aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
+cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific
 
 # Create DynamoDB access policy with user isolation
-aws-cognito-admin policy create-dynamodb-policy --table-name my-table
+cogadmin policy create-dynamodb-policy --table-name my-table
 
 # Apply custom policy from JSON file
-aws-cognito-admin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
+cogadmin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
 
 # Deploy Lambda credential proxy
-aws-cognito-admin lambda deploy --access-key-id AKIA... --secret-access-key ...
+cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
 
 # Create new IAM user for Lambda proxy (requires admin permissions)
-aws-cognito-admin lambda deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Set up new Cognito Identity Pool interactively
-aws-cognito-admin setup-identity-pool
+cogadmin setup-identity-pool
 
 # Get help for admin commands
-aws-cognito-admin --help
+cogadmin --help
 ```
 
 ### Example Workflow
 
 ```bash
 # 1. Configure once
-aws-cognito-auth configure
+cogauth configure
 
 # 2. Login and get credentials
-aws-cognito-auth login -u myuser
+cogauth login -u myuser
 
 # Sample output:
 # 🎫 Getting temporary credentials from Cognito Identity Pool...
@@ -188,16 +199,16 @@ Use the provided administrative commands:
 
 ```bash
 # Deploy complete Lambda infrastructure with new IAM user
-aws-cognito-admin lambda deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Or deploy with existing IAM user credentials
-aws-cognito-admin lambda deploy --access-key-id AKIA... --secret-access-key ...
+cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
 
 # Set up new Cognito Identity Pool interactively
-aws-cognito-admin setup-identity-pool
+cogadmin setup-identity-pool
 
 # View current role configuration
-aws-cognito-admin role info
+cogadmin role info
 ```
 
 ### Option 2: Manual Setup
@@ -307,22 +318,22 @@ The project includes comprehensive administrative tools for handling IAM policie
 
 ```bash
 # View current Identity Pool role information
-aws-cognito-admin role info
+cogadmin role info
 
 # Create S3 policy with user isolation (Cognito identity-based)
-aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
+cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific
 
 # Create S3 policy with full bucket access
-aws-cognito-admin policy create-s3-policy --bucket-name my-bucket
+cogadmin policy create-s3-policy --bucket-name my-bucket
 
 # Create DynamoDB policy with user isolation
-aws-cognito-admin policy create-dynamodb-policy --table-name my-table
+cogadmin policy create-dynamodb-policy --table-name my-table
 
 # Apply custom policy from JSON file
-aws-cognito-admin role apply-policy --policy-file my-policy.json --policy-name MyPolicy
+cogadmin role apply-policy --policy-file my-policy.json --policy-name MyPolicy
 
 # Deploy Lambda credential proxy infrastructure
-aws-cognito-admin lambda deploy --create-user
+cogadmin lambda deploy --create-user
 ```
 
 ### Service-Specific Permissions
@@ -412,10 +423,10 @@ export AWS_REGION="us-east-1"
 
 ```bash
 # Development environment
-aws-cognito-auth login -u dev-user --profile development
+cogauth login -u dev-user --profile development
 
 # Production environment
-aws-cognito-auth login -u prod-user --profile production
+cogauth login -u prod-user --profile production
 
 # Use with different profiles
 aws --profile development s3 ls
@@ -438,7 +449,7 @@ The AWS Cognito Authoriser uses a hierarchical configuration system for administ
 
 Set up admin configuration interactively:
 ```bash
-aws-cognito-admin configure
+cogadmin configure
 ```
 
 This command will prompt you to configure:
@@ -536,23 +547,23 @@ The administrative tool provides comprehensive AWS infrastructure management:
 
 ```bash
 # Configure admin settings interactively
-aws-cognito-admin configure
+cogadmin configure
 
 # View Identity Pool role configuration
-aws-cognito-admin role info
+cogadmin role info
 
 # Create service-specific policies
-aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
-aws-cognito-admin policy create-dynamodb-policy --table-name my-table
+cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific
+cogadmin policy create-dynamodb-policy --table-name my-table
 
 # Apply custom policies
-aws-cognito-admin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
+cogadmin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
 
 # Deploy Lambda infrastructure
-aws-cognito-admin lambda deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Set up new Cognito Identity Pool
-aws-cognito-admin setup-identity-pool
+cogadmin setup-identity-pool
 ```
 
 ## 📊 Monitoring and Logging
@@ -569,7 +580,7 @@ aws logs tail /aws/lambda/cognito-credential-proxy --follow
 Enable detailed logging:
 ```bash
 export BOTO_DEBUG=1
-aws-cognito-auth login -u username
+cogauth login -u username
 ```
 
 ## ❗ Troubleshooting
@@ -595,17 +606,17 @@ aws-cognito-auth login -u username
 - Check: IAM role trust policy for Identity Pool authenticated role
 
 **"Lambda function not found"**
-- Solution: Deploy Lambda function using `aws-cognito-admin lambda deploy`
+- Solution: Deploy Lambda function using `cogadmin lambda deploy`
 - Verify: Function name matches your configuration (default: `cognito-credential-proxy`)
 
 ### Testing Setup
 
 ```bash
 # Test configuration
-aws-cognito-auth status
+cogauth status
 
 # Test authentication (will show detailed error messages)
-aws-cognito-auth login -u test-user
+cogauth login -u test-user
 
 # Test AWS access
 aws sts get-caller-identity
@@ -655,6 +666,6 @@ Contributions are welcome! Please ensure:
 
 **⚡ Quick Start Summary:**
 1. `pip install -e .`
-2. `aws-cognito-auth configure`
-3. `aws-cognito-auth login -u username`
+2. `cogauth configure`
+3. `cogauth login -u username`
 4. Use AWS CLI commands normally!

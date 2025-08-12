@@ -1,0 +1,3 @@
+recursive-include src/cogadmin/policies *.json
+include README.md
+include LICENSE
