@@ -56,13 +56,13 @@ These policies are automatically loaded by the admin tool:
 
 ```bash
 # Create S3 policy with user isolation
-aws-cognito-admin policy create-s3-policy --bucket-name my-bucket --user-specific
+cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific
 
 # Create DynamoDB policy
-aws-cognito-admin policy create-dynamodb-policy --table-name my-table
+cogadmin policy create-dynamodb-policy --table-name my-table
 
 # Apply custom policy from file
-aws-cognito-admin role apply-policy --policy-file custom-policy.json --policy-name CustomPolicy
+cogadmin role apply-policy --policy-file custom-policy.json --policy-name CustomPolicy
 ```
 
 ## Placeholder Variables

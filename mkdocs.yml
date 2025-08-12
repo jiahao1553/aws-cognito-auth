@@ -1,15 +1,24 @@
-site_name: aws-cognito-auth
+site_name: AWS Cognito Authoriser
 repo_url: https://github.com/jiahao1553/aws-cognito-auth
 site_url: https://jiahao1553.github.io/aws-cognito-auth
-site_description: This is a template repository for Python projects that use uv for their dependency management.
+site_description: AWS Cognito authentication CLI tool for seamless AWS CLI integration with temporary credential management.
 site_author: JiaHao Tan
 edit_uri: edit/main/docs/
 repo_name: jiahao1553/aws-cognito-auth
-copyright: Maintained by <a href="https://https://github.com/jiahao1553">jiahao1553</a>.
+copyright: Maintained by <a href="https://github.com/jiahao1553">jiahao1553</a>.
 
 nav:
   - Home: index.md
-  - Modules: modules.md
+  - Getting Started:
+    - Installation & Setup: installation.md
+    - Usage Guide: usage.md
+    - AWS Infrastructure Setup: aws-setup.md
+  - Configuration:
+    - Configuration Guide: configuration.md
+    - Administration: administration.md
+  - Reference:
+    - API Reference: modules.md
+    - Troubleshooting: troubleshooting.md
 plugins:
   - search
   - mkdocstrings:

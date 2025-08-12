@@ -60,7 +60,10 @@ def lambda_handler(event, context):
         access_key = os.environ.get("IAM_USER_AWS_ACCESS_KEY_ID")
         secret_key = os.environ.get("IAM_USER_AWS_SECRET_ACCESS_KEY")
 
-        print(f"Debug - Using access key: {access_key[:4]}...{access_key[-4:] if access_key else 'None'}")
+        if access_key:
+            print(f"Debug - Using access key: {access_key[:4]}...{access_key[-4:]}")
+        else:
+            print("Debug - Using access key: None")
         print(f"Debug - Using secret key: {'***REDACTED***' if secret_key else 'None'}")
 
         if not access_key or not secret_key:

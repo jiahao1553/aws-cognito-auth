@@ -665,7 +665,7 @@ def deploy(region, access_key_id, secret_access_key, create_user, lambda_code):
             print("   1. Provide --access-key-id and --secret-access-key for your existing IAM user")
             print("   2. Use --create-user flag (requires elevated permissions)")
             print("\nExample:")
-            print("   aws-cognito-admin lambda deploy --access-key-id AKIA... --secret-access-key ...")
+            print("   cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...")
             return
 
         # Create roles

@@ -197,7 +197,7 @@ class CognitoAuthenticator:
 
         except lambda_client.exceptions.ResourceNotFoundException:
             raise Exception(
-                f"Lambda function '{admin_config['aws_service_names']['lambda_function_name']}' not found. Please deploy it first using aws-cognito-admin lambda deploy"
+                f"Lambda function '{admin_config['aws_service_names']['lambda_function_name']}' not found. Please deploy it first using cogadmin lambda deploy"
             ) from None
         except Exception as e:
             # Don't fallback here - let the main method handle it
@@ -346,7 +346,6 @@ def configure():
         "AWS Region (optional, will auto-detect if not provided)",
         default=config.get("region", ""),
         show_default=False,
-        required=False,
     )
 
     # Save configuration

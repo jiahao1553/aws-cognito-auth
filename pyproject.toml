@@ -30,8 +30,8 @@ classifiers = [
 ]
 
 [project.scripts]
-aws-cognito-auth = "aws_cognito_auth.client:cli"
-aws-cognito-admin = "aws_cognito_auth.admin:admin_cli"
+cogauth = "aws_cognito_auth.client:cli"
+cogadmin = "aws_cognito_auth.admin:admin_cli"
 
 [project.urls]
 Homepage = "https://jiahao1553.github.io/aws-cognito-auth/"
