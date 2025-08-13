@@ -293,9 +293,8 @@ class TestConfigurationFunctions:
 
     def test_load_policy_template_not_found(self):
         """Test loading policy template when file not found"""
-        with patch("pathlib.Path.exists", return_value=False):
-            with pytest.raises(FileNotFoundError):
-                load_policy_template("nonexistent-policy.json")
+        with patch("pathlib.Path.exists", return_value=False), pytest.raises(FileNotFoundError):
+            load_policy_template("nonexistent-policy.json")
 
 
 class TestCLICommands:
@@ -524,12 +523,12 @@ class TestCLICommands:
         mock_iam = MagicMock()
 
         def client_factory(service_name, **kwargs):
-            if service_name == "cognito-identity":
-                return mock_cognito_identity
-            elif service_name == "cognito-idp":
-                return mock_cognito_idp
-            elif service_name == "iam":
-                return mock_iam
+            clients = {
+                "cognito-identity": mock_cognito_identity,
+                "cognito-idp": mock_cognito_idp,
+                "iam": mock_iam,
+            }
+            return clients.get(service_name, MagicMock())
 
         mock_boto_client.side_effect = client_factory
 

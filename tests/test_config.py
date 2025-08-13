@@ -107,17 +107,16 @@ class TestClientConfiguration:
             "region": "us-east-1",
         }
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
-                save_config(config_data)
+        with tempfile.TemporaryDirectory() as temp_dir, patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            save_config(config_data)
 
-                config_file = Path(temp_dir) / ".cognito-cli-config.json"
-                assert config_file.exists()
+            config_file = Path(temp_dir) / ".cognito-cli-config.json"
+            assert config_file.exists()
 
-                with open(config_file) as f:
-                    saved_config = json.load(f)
+            with open(config_file) as f:
+                saved_config = json.load(f)
 
-                assert saved_config == config_data
+            assert saved_config == config_data
 
 
 class TestAdminConfiguration:

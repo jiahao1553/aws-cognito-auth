@@ -84,8 +84,8 @@ class TestLambdaHandler:
         assert response["statusCode"] == 200
         body = json.loads(response["body"])
         assert body["access_key_id"] == "AKIALAMBDA123"
-        assert body["secret_access_key"] == "lambda-secret"
-        assert body["session_token"] == "lambda-session-token"
+        assert body["secret_access_key"] == "lambda-secret"  # noqa: S105
+        assert body["session_token"] == "lambda-session-token"  # noqa: S105
         assert body["username"] == "testuser"
         assert body["user_id"] == "test-user-id"
 
@@ -440,8 +440,8 @@ class TestLambdaIntegration:
 
         body = json.loads(response["body"])
         assert body["access_key_id"] == "AKIALAMBDATEST123"
-        assert body["secret_access_key"] == "lambda-generated-secret-key"
-        assert body["session_token"] == "long-session-token-string-here"
+        assert body["secret_access_key"] == "lambda-generated-secret-key"  # noqa: S105
+        assert body["session_token"] == "long-session-token-string-here"  # noqa: S105
         assert body["username"] == "john.doe@example.com"
         assert body["user_id"] == "us-east-1:12345678-abcd-1234-efgh-123456789012"
         assert "expiration" in body

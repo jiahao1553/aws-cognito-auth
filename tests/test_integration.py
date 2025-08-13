@@ -7,6 +7,7 @@ They use mocked AWS services but test the full integration flow.
 
 import json
 import tempfile
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -121,13 +122,12 @@ class TestEndToEndAuthentication:
         mock_lambda_client = MagicMock()
 
         def client_factory(service_name, **kwargs):
-            if service_name == "cognito-idp":
-                return mock_cognito_idp
-            elif service_name == "cognito-identity":
-                return mock_cognito_identity
-            elif service_name == "lambda":
-                return mock_lambda_client
-            return MagicMock()
+            clients = {
+                "cognito-idp": mock_cognito_idp,
+                "cognito-identity": mock_cognito_identity,
+                "lambda": mock_lambda_client,
+            }
+            return clients.get(service_name, MagicMock())
 
         mock_boto_client.side_effect = client_factory
 
@@ -177,30 +177,29 @@ class TestEndToEndAuthentication:
             "session_token": "test-session-token",
         }
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
-                manager = AWSProfileManager()
-                manager.update_profile("test-profile", credentials, "us-east-1")
+        with tempfile.TemporaryDirectory() as temp_dir, patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            manager = AWSProfileManager()
+            manager.update_profile("test-profile", credentials, "us-east-1")
 
-                # Check credentials file
-                credentials_file = Path(temp_dir) / ".aws" / "credentials"
-                assert credentials_file.exists()
+            # Check credentials file
+            credentials_file = Path(temp_dir) / ".aws" / "credentials"
+            assert credentials_file.exists()
 
-                with open(credentials_file) as f:
-                    content = f.read()
-                    assert "[test-profile]" in content
-                    assert "aws_access_key_id = AKIATEST123456" in content
-                    assert "aws_secret_access_key = test-secret-access-key" in content
-                    assert "aws_session_token = test-session-token" in content
+            with open(credentials_file) as f:
+                content = f.read()
+                assert "[test-profile]" in content
+                assert "aws_access_key_id = AKIATEST123456" in content
+                assert "aws_secret_access_key = test-secret-access-key" in content
+                assert "aws_session_token = test-session-token" in content
 
-                # Check config file
-                config_file = Path(temp_dir) / ".aws" / "config"
-                assert config_file.exists()
+            # Check config file
+            config_file = Path(temp_dir) / ".aws" / "config"
+            assert config_file.exists()
 
-                with open(config_file) as f:
-                    content = f.read()
-                    assert "[profile test-profile]" in content
-                    assert "region = us-east-1" in content
+            with open(config_file) as f:
+                content = f.read()
+                assert "[profile test-profile]" in content
+                assert "region = us-east-1" in content
 
 
 class TestAdminIntegration:
@@ -213,11 +212,11 @@ class TestAdminIntegration:
         mock_iam = MagicMock()
 
         def client_factory(service_name, **kwargs):
-            if service_name == "cognito-identity":
-                return mock_cognito_identity
-            elif service_name == "iam":
-                return mock_iam
-            return MagicMock()
+            clients = {
+                "cognito-identity": mock_cognito_identity,
+                "iam": mock_iam,
+            }
+            return clients.get(service_name, MagicMock())
 
         mock_boto_client.side_effect = client_factory
 
@@ -258,11 +257,11 @@ class TestAdminIntegration:
         mock_lambda_client = MagicMock()
 
         def client_factory(service_name, **kwargs):
-            if service_name == "iam":
-                return mock_iam
-            elif service_name == "lambda":
-                return mock_lambda_client
-            return MagicMock()
+            clients = {
+                "iam": mock_iam,
+                "lambda": mock_lambda_client,
+            }
+            return clients.get(service_name, MagicMock())
 
         mock_boto_client.side_effect = client_factory
 
@@ -313,11 +312,11 @@ class TestErrorHandlingIntegration:
         mock_cognito_identity = MagicMock()
 
         def client_factory(service_name, **kwargs):
-            if service_name == "cognito-idp":
-                return mock_cognito_idp
-            elif service_name == "cognito-identity":
-                return mock_cognito_identity
-            return MagicMock()
+            clients = {
+                "cognito-idp": mock_cognito_idp,
+                "cognito-identity": mock_cognito_identity,
+            }
+            return clients.get(service_name, MagicMock())
 
         mock_boto_client.side_effect = client_factory
 
@@ -346,11 +345,11 @@ class TestErrorHandlingIntegration:
         mock_cognito_identity = MagicMock()
 
         def client_factory(service_name, **kwargs):
-            if service_name == "cognito-idp":
-                return mock_cognito_idp
-            elif service_name == "cognito-identity":
-                return mock_cognito_identity
-            return MagicMock()
+            clients = {
+                "cognito-idp": mock_cognito_idp,
+                "cognito-identity": mock_cognito_identity,
+            }
+            return clients.get(service_name, MagicMock())
 
         mock_boto_client.side_effect = client_factory
 
@@ -484,11 +483,9 @@ class TestConfigurationIntegration:
                     identity_pool_id="us-east-1:test-identity-pool",
                 )
 
-                try:
+                with suppress(Exception):
                     # This should attempt to call the custom Lambda function name
                     authenticator._get_lambda_credentials("test-token", 12, fallback_creds)
-                except Exception:
-                    pass  # We expect this to fail since Lambda is mocked
 
                 # Verify the correct Lambda function name was used
                 if mock_lambda_client.invoke.called:

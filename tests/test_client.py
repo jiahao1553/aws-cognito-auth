@@ -119,7 +119,7 @@ class TestCognitoAuthenticator:
             identity_pool_id="us-east-1:test-identity-pool",
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Invalid username or password"):
             auth.authenticate_user("baduser", "badpass")
 
     @patch("boto3.client")
@@ -179,10 +179,8 @@ class TestCognitoAuthenticator:
             identity_pool_id="us-east-1:test-identity-pool",
         )
 
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception, match="Please deploy it first using cogadmin lambda deploy"):
             auth._get_lambda_credentials("test-id-token", 12, None)
-
-        assert "Please deploy it first using cogadmin lambda deploy" in str(exc_info.value)
 
 
 class TestAWSProfileManager:
@@ -260,17 +258,16 @@ class TestConfigurationFunctions:
 
     def test_save_config(self, mock_config_data):
         """Test saving configuration to file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("pathlib.Path.home", return_value=Path(temp_dir)):
-                save_config(mock_config_data)
+        with tempfile.TemporaryDirectory() as temp_dir, patch("pathlib.Path.home", return_value=Path(temp_dir)):
+            save_config(mock_config_data)
 
-                config_file = Path(temp_dir) / ".cognito-cli-config.json"
-                assert config_file.exists()
+            config_file = Path(temp_dir) / ".cognito-cli-config.json"
+            assert config_file.exists()
 
-                with open(config_file) as f:
-                    saved_config = json.load(f)
+            with open(config_file) as f:
+                saved_config = json.load(f)
 
-                assert saved_config == mock_config_data
+            assert saved_config == mock_config_data
 
 
 class TestCLICommands:
