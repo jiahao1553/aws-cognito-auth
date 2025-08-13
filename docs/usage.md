@@ -107,10 +107,10 @@ cogadmin policy create-dynamodb-policy --table-name my-table
 #### Lambda Proxy Setup
 ```bash
 # Deploy with new IAM user (requires elevated permissions)
-cogadmin lambda-proxy deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Deploy with existing IAM user credentials
-cogadmin lambda-proxy deploy --access-key-id AKIA... --secret-access-key ...
+cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
 ```
 
 #### Identity Pool Setup
@@ -241,5 +241,5 @@ cogadmin --help
 # Get help for specific subcommands
 cogadmin role --help
 cogadmin policy --help
-cogadmin lambda-proxy --help
+cogadmin lambda --help
 ```

@@ -214,7 +214,7 @@ class CognitoAuthenticator:
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
                 raise Exception(
-                    f"Lambda function '{admin_config['aws_service_names']['lambda_function_name']}' not found. Please deploy it first using cogadmin lambda-proxy deploy"
+                    f"Lambda function '{admin_config['aws_service_names']['lambda_function_name']}' not found. Please deploy it first using cogadmin lambda deploy"
                 ) from None
             raise
         except Exception as e:

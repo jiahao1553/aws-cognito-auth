@@ -79,7 +79,7 @@ aws sts get-caller-identity
 cogadmin role info
 
 # Deploy Lambda credential proxy
-cogadmin lambda-proxy deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Create service-specific policies
 cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific

@@ -153,10 +153,10 @@ cogadmin policy create-dynamodb-policy --table-name my-table
 cogadmin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
 
 # Deploy Lambda credential proxy
-cogadmin lambda-proxy deploy --access-key-id AKIA... --secret-access-key ...
+cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
 
 # Create new IAM user for Lambda proxy (requires admin permissions)
-cogadmin lambda-proxy deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Set up new Cognito Identity Pool interactively
 cogadmin setup-identity-pool
@@ -194,10 +194,10 @@ Use the provided administrative commands:
 
 ```bash
 # Deploy complete Lambda infrastructure with new IAM user
-cogadmin lambda-proxy deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Or deploy with existing IAM user credentials
-cogadmin lambda-proxy deploy --access-key-id AKIA... --secret-access-key ...
+cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
 
 # Set up new Cognito Identity Pool interactively
 cogadmin setup-identity-pool
@@ -328,7 +328,7 @@ cogadmin policy create-dynamodb-policy --table-name my-table
 cogadmin role apply-policy --policy-file my-policy.json --policy-name MyPolicy
 
 # Deploy Lambda credential proxy infrastructure
-cogadmin lambda-proxy deploy --create-user
+cogadmin lambda deploy --create-user
 ```
 
 ### Service-Specific Permissions
@@ -555,7 +555,7 @@ cogadmin policy create-dynamodb-policy --table-name my-table
 cogadmin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
 
 # Deploy Lambda infrastructure
-cogadmin lambda-proxy deploy --create-user
+cogadmin lambda deploy --create-user
 
 # Set up new Cognito Identity Pool
 cogadmin setup-identity-pool
@@ -601,7 +601,7 @@ cogauth login -u username
 - Check: IAM role trust policy for Identity Pool authenticated role
 
 **"Lambda function not found"**
-- Solution: Deploy Lambda function using `cogadmin lambda-proxy deploy`
+- Solution: Deploy Lambda function using `cogadmin lambda deploy`
 - Verify: Function name matches your configuration (default: `cognito-credential-proxy`)
 
 ### Testing Setup
