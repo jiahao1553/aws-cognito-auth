@@ -60,7 +60,7 @@ The system consists of three main components:
 1. **Clone the repository:**
    ```bash
    git clone <repository-url>
-   cd aws-authoriser
+   cd aws-cognito-auth
    ```
 
 2. **Install the package:**

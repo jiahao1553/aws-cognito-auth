@@ -56,6 +56,12 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# Ensure non-Python policy templates are included in distributions
+include = [
+    "src/aws_cognito_auth/policies/*.json",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/aws_cognito_auth"]
 

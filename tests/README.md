@@ -277,7 +277,7 @@ def test_config_loading():
 2. **Path Issues**
    ```bash
    # Run tests from project root
-   cd /path/to/aws-authoriser
+   cd /path/to/aws-cognito-auth
    pytest
    ```
 

@@ -5,6 +5,7 @@ Combines all administrative functions for setting up and managing AWS infrastruc
 """
 
 import json
+import logging
 import os
 import sys
 import zipfile
@@ -388,19 +389,35 @@ def load_admin_config():
 
 
 def load_policy_template(policy_name):
-    """Load policy template from policies folder"""
-    policies_dir = Path(__file__).parent.parent.parent / "policies"
-    # Accept both with or without .json suffix
-    if str(policy_name).endswith(".json"):
-        policy_file = policies_dir / str(policy_name)
-    else:
-        policy_file = policies_dir / f"{policy_name}.json"
+    """Load policy template JSON.
 
-    if not policy_file.exists():
-        raise FileNotFoundError(f"Policy template not found: {policy_file}")
+    Preference order:
+    1. Repository-level `policies/` directory (useful for development and tests that mock file I/O)
+    2. Installed package resources under `aws_cognito_auth.policies`
+    """
+    # Normalize filename to include .json suffix
+    normalized_name = str(policy_name) if str(policy_name).endswith(".json") else f"{policy_name}.json"
 
-    with open(policy_file) as f:
-        return json.load(f)
+    # 1) Check repository layout first to honor tests that mock Path.exists/open
+    repo_policies_dir = Path(__file__).resolve().parent.parent.parent / "policies"
+    policy_file = repo_policies_dir / normalized_name
+    if policy_file.exists():
+        with open(policy_file, encoding="utf-8") as f:
+            return json.load(f)
+
+    # 2) Fallback to installed package resources
+    try:
+        import importlib.resources as resources
+
+        policy_pkg = "aws_cognito_auth.policies"
+        policy_path = resources.files(policy_pkg).joinpath(normalized_name)  # type: ignore[attr-defined]
+        if policy_path.is_file():
+            with policy_path.open("r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        logging.debug("Unable to read policy from package resources: %s", e)
+
+    raise FileNotFoundError(f"Policy template not found: {normalized_name}")
 
 
 @click.group()
