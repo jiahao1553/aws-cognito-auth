@@ -225,7 +225,6 @@ class TestLambdaDeployer:
             assert role_arn == "arn:aws:iam::123456789012:role/TestLongLivedRole"
 
     @patch("boto3.client")
-    @patch("builtins.open", mock_open(read_data="lambda code content"))
     @patch("pathlib.Path.exists", return_value=True)
     def test_deploy_lambda_function(self, mock_exists, mock_boto_client):
         """Test deploying Lambda function"""

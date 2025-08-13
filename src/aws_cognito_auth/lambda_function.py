@@ -102,11 +102,11 @@ def _assume_role_and_respond(sts_client, role_arn, role_session_name, duration_s
         RoleArn=role_arn,
         RoleSessionName=role_session_name,
         DurationSeconds=min(duration_seconds, 43200),
-        # Tags=[
-        #     {"Key": "CognitoUsername", "Value": username},
-        #     {"Key": "CognitoSubject", "Value": user_id},
-        #     {"Key": "Source", "Value": "CognitoCredentialProxy"},
-        # ],
+        Tags=[
+            {"Key": "CognitoUsername", "Value": username},
+            {"Key": "CognitoSubject", "Value": user_id},
+            {"Key": "Source", "Value": "CognitoCredentialProxy"},
+        ],
     )
     credentials = response["Credentials"]
     return _response(

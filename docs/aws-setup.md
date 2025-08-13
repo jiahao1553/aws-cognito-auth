@@ -17,7 +17,7 @@ Use the automated administrative commands for easiest setup:
 
 ```bash
 # Deploy complete Lambda infrastructure with new IAM user
-cogadmin lambda deploy --create-user
+cogadmin lambda-proxy deploy --create-user
 
 # Set up new Cognito Identity Pool interactively
 cogadmin setup-identity-pool
@@ -277,7 +277,7 @@ cogadmin role apply-policy --policy-file custom-permissions.json --policy-name C
 ### Infrastructure Deployment
 ```bash
 # Complete Lambda setup (creates IAM user, roles, Lambda function)
-cogadmin lambda deploy --create-user
+cogadmin lambda-proxy deploy --create-user
 
 # View current setup
 cogadmin role info

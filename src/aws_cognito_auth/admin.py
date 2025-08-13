@@ -611,12 +611,12 @@ def create_dynamodb_policy(identity_pool_id, table_name, region):
 
 
 @admin_cli.group()
-def lambda_cmd():
+def lambda_proxy():
     """Lambda function management commands"""
     pass
 
 
-@lambda_cmd.command()
+@lambda_proxy.command()
 @click.option("--region", default="ap-southeast-1", help="AWS region")
 @click.option("--access-key-id", help="Your IAM user access key ID")
 @click.option("--secret-access-key", help="Your IAM user secret access key")
@@ -653,7 +653,7 @@ def deploy(region, access_key_id, secret_access_key, create_user, lambda_code):
             print("   1. Provide --access-key-id and --secret-access-key for your existing IAM user")
             print("   2. Use --create-user flag (requires elevated permissions)")
             print("\nExample:")
-            print("   cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...")
+            print("   cogadmin lambda-proxy deploy --access-key-id AKIA... --secret-access-key ...")
             return
 
         # Create roles

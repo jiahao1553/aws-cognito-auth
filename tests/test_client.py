@@ -179,7 +179,7 @@ class TestCognitoAuthenticator:
             identity_pool_id="us-east-1:test-identity-pool",
         )
 
-        with pytest.raises(Exception, match="Please deploy it first using cogadmin lambda deploy"):
+        with pytest.raises(Exception, match="Please deploy it first using cogadmin lambda-proxy deploy"):
             auth._get_lambda_credentials("test-id-token", 12, None)
 
 

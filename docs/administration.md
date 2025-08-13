@@ -138,7 +138,7 @@ The Lambda proxy enables 12-hour credentials (vs 1-hour from Identity Pool).
 
 #### Option 1: Create New IAM User
 ```bash
-cogadmin lambda deploy --create-user
+cogadmin lambda-proxy deploy --create-user
 ```
 
 This will:
@@ -149,7 +149,7 @@ This will:
 
 #### Option 2: Use Existing IAM User
 ```bash
-cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
+cogadmin lambda-proxy deploy --access-key-id AKIA... --secret-access-key ...
 ```
 
 Requirements for existing IAM user:

@@ -287,7 +287,7 @@ class TestAdminIntegration:
         with patch("aws_cognito_auth.admin.load_policy_template") as mock_load_policy:
             mock_load_policy.return_value = {"Version": "2012-10-17", "Statement": []}
 
-            with patch("builtins.open", create=True), patch("pathlib.Path.exists", return_value=True):
+            with patch("pathlib.Path.exists", return_value=True):
                 runner = CliRunner()
                 result = runner.invoke(admin_cli, ["lambda", "deploy", "--create-user"])
 

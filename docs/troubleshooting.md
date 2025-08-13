@@ -288,14 +288,14 @@ Error: User is not authorized to perform: sts:AssumeRoleWithWebIdentity
 
 **Symptoms:**
 ```
-Error: Lambda function 'cognito-credential-proxy' not found. Please deploy it first using cogadmin lambda deploy
+Error: Lambda function 'cognito-credential-proxy' not found. Please deploy it first using cogadmin lambda-proxy deploy
 ```
 
 **Solutions:**
 
 1. **Deploy Lambda Function:**
    ```bash
-   cogadmin lambda deploy --create-user
+   cogadmin lambda-proxy deploy --create-user
    ```
 
 2. **Check Function Exists:**
@@ -357,7 +357,7 @@ Error: Lambda function execution failed
 
 3. **Update Lambda Code:**
    ```bash
-   cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
+   cogadmin lambda-proxy deploy --access-key-id AKIA... --secret-access-key ...
    ```
 
 ### AWS CLI Integration Issues
