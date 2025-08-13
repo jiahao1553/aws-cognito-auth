@@ -352,6 +352,9 @@ def configure():
     click.echo("🔧 Cognito CLI Configuration")
 
     config = load_config()
+    # Handle case where no config is present yet
+    if config is None:
+        config = {}
 
     # Get user pool configuration
     user_pool_id = click.prompt(
