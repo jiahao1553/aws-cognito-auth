@@ -13,21 +13,21 @@ This guide walks you through installing the AWS Cognito Authoriser and performin
 ### Option 1: Install from Source
 
 1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/jiahao1553/aws-cognito-auth.git
-   cd aws-cognito-auth
-   ```
+```bash
+git clone https://github.com/jiahao1553/aws-cognito-auth.git
+cd aws-cognito-auth
+```
 
 2. **Install the package:**
-   ```bash
-   pip install -e .
-   ```
+```bash
+pip install -e .
+```
 
 3. **Verify installation:**
-   ```bash
-   cogauth --help
-   cogadmin --help
-   ```
+```bash
+cogauth --help
+cogadmin --help
+```
 
 ### Option 2: Install from PyPI
 

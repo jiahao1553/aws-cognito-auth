@@ -40,28 +40,28 @@ bash: cogauth: command not found
 **Solutions:**
 
 1. **Verify Installation:**
-   ```bash
-   pip show aws-cognito-auth
-   pip list | grep aws-cognito-auth
-   ```
+```bash
+pip show aws-cognito-auth
+pip list | grep aws-cognito-auth
+```
 
 2. **Reinstall Package:**
-   ```bash
-   pip uninstall aws-cognito-auth
-   pip install -e .
-   ```
+```bash
+pip uninstall aws-cognito-auth
+pip install -e .
+```
 
 3. **Check PATH:**
-   ```bash
-   which python
-   python -m pip show aws-cognito-auth
-   ```
+```bash
+which python
+python -m pip show aws-cognito-auth
+```
 
 4. **Use Full Path:**
-   ```bash
-   python -m aws_cognito_auth.client --help
-   python -m aws_cognito_auth.admin --help
-   ```
+```bash
+python -m aws_cognito_auth.client --help
+python -m aws_cognito_auth.admin --help
+```
 
 #### Import Errors
 
@@ -73,23 +73,23 @@ ModuleNotFoundError: No module named 'aws_cognito_auth'
 **Solutions:**
 
 1. **Check Python Version:**
-   ```bash
-   python --version  # Should be 3.9+
-   ```
+```bash
+python --version  # Should be 3.9+
+```
 
 2. **Install in Virtual Environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Linux/Mac
-   # OR
-   venv\Scripts\activate     # Windows
-   pip install -e .
-   ```
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# OR
+venv\Scripts\activate     # Windows
+pip install -e .
+```
 
 3. **Install Dependencies:**
-   ```bash
-   pip install boto3 click botocore
-   ```
+```bash
+pip install boto3 click botocore
+```
 
 ### Configuration Issues
 
@@ -103,22 +103,22 @@ Error: Missing required configuration. Please run 'cogauth configure' first.
 **Solutions:**
 
 1. **Run Interactive Configuration:**
-   ```bash
-   cogauth configure
-   ```
+```bash
+cogauth configure
+```
 
 2. **Check Configuration File:**
-   ```bash
-   cat ~/.cognito-cli-config.json
-   ```
+```bash
+cat ~/.cognito-cli-config.json
+```
 
 3. **Set Environment Variables:**
-   ```bash
-   export COGNITO_USER_POOL_ID="us-east-1_xxxxxxxxx"
-   export COGNITO_CLIENT_ID="your-client-id"
-   export COGNITO_IDENTITY_POOL_ID="us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-   export AWS_REGION="us-east-1"
-   ```
+```bash
+export COGNITO_USER_POOL_ID="us-east-1_xxxxxxxxx"
+export COGNITO_CLIENT_ID="your-client-id"
+export COGNITO_IDENTITY_POOL_ID="us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+export AWS_REGION="us-east-1"
+```
 
 #### Invalid Configuration Format
 
@@ -130,9 +130,9 @@ JSONDecodeError: Expecting property name enclosed in double quotes
 **Solutions:**
 
 1. **Validate JSON Syntax:**
-   ```bash
-   python -m json.tool ~/.cognito-cli-config.json
-   ```
+```bash
+python -m json.tool ~/.cognito-cli-config.json
+```
 
 2. **Fix Common JSON Errors:**
    - Use double quotes for strings
@@ -140,10 +140,10 @@ JSONDecodeError: Expecting property name enclosed in double quotes
    - Escape backslashes
 
 3. **Recreate Configuration:**
-   ```bash
-   rm ~/.cognito-cli-config.json
-   cogauth configure
-   ```
+```bash
+rm ~/.cognito-cli-config.json
+cogauth configure
+```
 
 ### Authentication Issues
 
@@ -157,18 +157,18 @@ Error: Invalid username or password
 **Solutions:**
 
 1. **Verify User Exists:**
-   ```bash
-   aws cognito-idp admin-get-user --user-pool-id us-east-1_xxxxxxxxx --username test-user
-   ```
+```bash
+aws cognito-idp admin-get-user --user-pool-id us-east-1_xxxxxxxxx --username test-user
+```
 
 2. **Check Password Requirements:**
    - Verify password meets User Pool policy
    - Check if password reset is required
 
 3. **Test with Different User:**
-   ```bash
-   cogauth login -u different-user
-   ```
+```bash
+cogauth login -u different-user
+```
 
 #### User Pool Configuration Error
 
@@ -180,20 +180,20 @@ Error: User pool us-east-1_xxxxxxxxx does not exist or is not accessible
 **Solutions:**
 
 1. **Verify User Pool ID:**
-   ```bash
-   aws cognito-idp describe-user-pool --user-pool-id us-east-1_xxxxxxxxx
-   ```
+```bash
+aws cognito-idp describe-user-pool --user-pool-id us-east-1_xxxxxxxxx
+```
 
 2. **Check Region:**
-   ```bash
-   aws configure get region
-   export AWS_REGION=us-east-1
-   ```
+```bash
+aws configure get region
+export AWS_REGION=us-east-1
+```
 
 3. **Verify AWS Credentials:**
-   ```bash
-   aws sts get-caller-identity
-   ```
+```bash
+aws sts get-caller-identity
+```
 
 #### App Client Configuration Error
 
@@ -205,18 +205,18 @@ Error: App client does not exist or authentication flow not enabled
 **Solutions:**
 
 1. **Check App Client:**
-   ```bash
-   aws cognito-idp describe-user-pool-client --user-pool-id us-east-1_xxxxxxxxx --client-id your-client-id
-   ```
+```bash
+aws cognito-idp describe-user-pool-client --user-pool-id us-east-1_xxxxxxxxx --client-id your-client-id
+```
 
 2. **Verify Authentication Flows:**
    - Enable `ALLOW_USER_PASSWORD_AUTH`
    - Enable `ALLOW_REFRESH_TOKEN_AUTH`
 
 3. **Update Client Configuration:**
-   ```bash
-   aws cognito-idp update-user-pool-client --user-pool-id us-east-1_xxxxxxxxx --client-id your-client-id --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH
-   ```
+```bash
+aws cognito-idp update-user-pool-client --user-pool-id us-east-1_xxxxxxxxx --client-id your-client-id --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_REFRESH_TOKEN_AUTH
+```
 
 ### Identity Pool Issues
 
@@ -230,19 +230,19 @@ Error: Identity pool us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx does not exi
 **Solutions:**
 
 1. **Verify Identity Pool:**
-   ```bash
-   aws cognito-identity describe-identity-pool --identity-pool-id "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-   ```
+```bash
+aws cognito-identity describe-identity-pool --identity-pool-id "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
 
 2. **Check Authentication Providers:**
-   ```bash
-   aws cognito-identity get-identity-pool-configuration --identity-pool-id "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-   ```
+```bash
+aws cognito-identity get-identity-pool-configuration --identity-pool-id "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
 
 3. **Set Up Identity Pool:**
-   ```bash
-   cogadmin setup-identity-pool
-   ```
+```bash
+cogadmin setup-identity-pool
+```
 
 #### AssumeRoleWithWebIdentity Access Denied
 
@@ -254,33 +254,33 @@ Error: User is not authorized to perform: sts:AssumeRoleWithWebIdentity
 **Solutions:**
 
 1. **Check Role Trust Policy:**
-   ```bash
-   aws iam get-role --role-name Cognito_IdentityPoolAuth_Role
-   ```
+```bash
+aws iam get-role --role-name Cognito_IdentityPoolAuth_Role
+```
 
 2. **Update Trust Policy:**
-   ```json
-   {
-       "Version": "2012-10-17",
-       "Statement": [
-           {
-               "Effect": "Allow",
-               "Principal": {
-                   "Federated": "cognito-identity.amazonaws.com"
-               },
-               "Action": "sts:AssumeRoleWithWebIdentity",
-               "Condition": {
-                   "StringEquals": {
-                       "cognito-identity.amazonaws.com:aud": "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                   },
-                   "ForAnyValue:StringLike": {
-                       "cognito-identity.amazonaws.com:amr": "authenticated"
-                   }
-               }
-           }
-       ]
-   }
-   ```
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "cognito-identity.amazonaws.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "cognito-identity.amazonaws.com:aud": "us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                },
+                "ForAnyValue:StringLike": {
+                    "cognito-identity.amazonaws.com:amr": "authenticated"
+                }
+            }
+        }
+    ]
+}
+```
 
 ### Lambda Proxy Issues
 
@@ -294,19 +294,19 @@ Error: Lambda function 'cognito-credential-proxy' not found. Please deploy it fi
 **Solutions:**
 
 1. **Deploy Lambda Function:**
-   ```bash
-   cogadmin lambda deploy --create-user
-   ```
+```bash
+cogadmin lambda deploy --create-user
+```
 
 2. **Check Function Exists:**
-   ```bash
-   aws lambda get-function --function-name cognito-credential-proxy
-   ```
+```bash
+aws lambda get-function --function-name cognito-credential-proxy
+```
 
 3. **Skip Lambda Proxy:**
-   ```bash
-   cogauth login -u test-user --no-lambda-proxy
-   ```
+```bash
+cogauth login -u test-user --no-lambda-proxy
+```
 
 #### Lambda Permission Denied
 
@@ -318,23 +318,23 @@ Error: User is not authorized to perform: lambda:InvokeFunction
 **Solutions:**
 
 1. **Add Lambda Permission to Role:**
-   ```json
-   {
-       "Version": "2012-10-17",
-       "Statement": [
-           {
-               "Effect": "Allow",
-               "Action": "lambda:InvokeFunction",
-               "Resource": "arn:aws:lambda:*:*:function:cognito-credential-proxy"
-           }
-       ]
-   }
-   ```
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "lambda:InvokeFunction",
+            "Resource": "arn:aws:lambda:*:*:function:cognito-credential-proxy"
+        }
+    ]
+}
+```
 
 2. **Apply Policy:**
-   ```bash
-   cogadmin role apply-policy --policy-file lambda-invoke-policy.json --policy-name LambdaInvokePolicy
-   ```
+```bash
+cogadmin role apply-policy --policy-file lambda-invoke-policy.json --policy-name LambdaInvokePolicy
+```
 
 #### Lambda Function Error
 
@@ -346,19 +346,71 @@ Error: Lambda function execution failed
 **Solutions:**
 
 1. **Check Lambda Logs:**
-   ```bash
-   aws logs tail /aws/lambda/cognito-credential-proxy --follow
-   ```
+```bash
+aws logs tail /aws/lambda/cognito-credential-proxy --follow
+```
 
 2. **Check Environment Variables:**
-   ```bash
-   aws lambda get-function-configuration --function-name cognito-credential-proxy
-   ```
+```bash
+aws lambda get-function-configuration --function-name cognito-credential-proxy
+```
 
 3. **Update Lambda Code:**
-   ```bash
-   cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
-   ```
+```bash
+cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
+```
+
+### Common Setup Issues and Solutions
+
+#### Issue: "User is not authorized to perform: sts:TagSession"
+
+**Cause**: The long-lived role's trust policy doesn't include `sts:TagSession` action.
+
+**Solution**: Update the trust policy to include both `"sts:AssumeRole"` and `"sts:TagSession"` in the Action array.
+
+#### Issue: "User is not authorized to perform: sts:AssumeRole on resource"
+
+**Cause**: Either the IAM user doesn't have permission, or the role's trust policy doesn't allow the user.
+
+**Solution**:
+1. Verify the IAM user has the `CognitoCredentialProxyAccess` policy
+2. Verify the long-lived role's trust policy includes the correct user ARN
+
+#### Issue: Lambda function logs show "Missing required environment variable"
+
+**Cause**: Lambda environment variables are not configured.
+
+**Solution**: Set all three environment variables (`IAM_USER_ACCESS_KEY_ID`, `IAM_USER_SECRET_ACCESS_KEY`, `DEFAULT_ROLE_ARN`) in the Lambda function configuration.
+
+#### Issue: "Lambda proxy failed: Lambda error: Failed to assume role"
+
+**Cause**: Usually a configuration mismatch between the role name in admin config and the actual IAM role.
+
+**Solution**:
+1. Check your admin config file (`~/.cognito-admin-config.json`) for the correct `long_lived_role_name`
+2. Verify the IAM role exists with exactly that name
+3. Verify the Lambda's `DEFAULT_ROLE_ARN` environment variable matches
+
+### Testing the Setup
+
+You can verify your setup with these AWS CLI commands:
+
+```bash
+# Test IAM user can assume the role
+AWS_ACCESS_KEY_ID=AKIA... AWS_SECRET_ACCESS_KEY=... \
+aws sts assume-role \
+--role-arn arn:aws:iam::ACCOUNT:role/CognitoLongLivedRole \
+--role-session-name test-session
+
+# Test Lambda function directly
+aws lambda invoke \
+--function-name cognito-credential-proxy \
+--payload '{"id_token":"test-token","duration_seconds":7200}' \
+output.json
+
+# Check Lambda logs
+aws logs tail /aws/lambda/cognito-credential-proxy --follow
+```
 
 ### AWS CLI Integration Issues
 
@@ -373,19 +425,19 @@ Unable to locate credentials. You can configure credentials by running "aws conf
 **Solutions:**
 
 1. **Check AWS Credentials File:**
-   ```bash
-   cat ~/.aws/credentials
-   ```
+```bash
+cat ~/.aws/credentials
+```
 
 2. **Re-login with Cognito:**
-   ```bash
-   cogauth login -u your-username
-   ```
+```bash
+cogauth login -u your-username
+```
 
 3. **Specify Profile:**
-   ```bash
-   aws s3 ls --profile default
-   ```
+```bash
+aws s3 ls --profile default
+```
 
 #### Access Denied with AWS Commands
 
@@ -398,19 +450,19 @@ An error occurred (AccessDenied) when calling the ListBuckets operation
 **Solutions:**
 
 1. **Check Current Identity:**
-   ```bash
-   aws sts get-caller-identity
-   ```
+```bash
+aws sts get-caller-identity
+```
 
 2. **Verify Role Permissions:**
-   ```bash
-   cogadmin role info
-   ```
+```bash
+cogadmin role info
+```
 
 3. **Add Required Permissions:**
-   ```bash
-   cogadmin policy create-s3-policy --bucket-name your-bucket
-   ```
+```bash
+cogadmin policy create-s3-policy --bucket-name your-bucket
+```
 
 ## Performance Issues
 
@@ -419,10 +471,10 @@ An error occurred (AccessDenied) when calling the ListBuckets operation
 **Solutions:**
 
 1. **Use Local Configuration:**
-   ```bash
-   # Create project-specific config
-   cp ~/.cognito-cli-config.json ./cognito-cli-config.json
-   ```
+```bash
+# Create project-specific config
+cp ~/.cognito-cli-config.json ./cognito-cli-config.json
+```
 
 2. **Optimize Network:**
    - Use appropriate AWS region
@@ -434,14 +486,14 @@ An error occurred (AccessDenied) when calling the ListBuckets operation
 **Solutions:**
 
 1. **Use Longer Credentials:**
-   ```bash
-   cogauth login -u your-username --duration 12
-   ```
+```bash
+cogauth login -u your-username --duration 12
+```
 
 2. **Check Credential Expiration:**
-   ```bash
-   aws sts get-caller-identity
-   ```
+```bash
+aws sts get-caller-identity
+```
 
 ## Network and Connectivity Issues
 
@@ -455,38 +507,38 @@ Error: Connection timed out
 **Solutions:**
 
 1. **Check Internet Connection:**
-   ```bash
-   ping cognito-idp.us-east-1.amazonaws.com
-   ```
+```bash
+ping cognito-idp.us-east-1.amazonaws.com
+```
 
 2. **Verify AWS Region:**
-   ```bash
-   export AWS_REGION=us-east-1
-   ```
+```bash
+export AWS_REGION=us-east-1
+```
 
 3. **Use Corporate Proxy:**
-   ```bash
-   export HTTP_PROXY=http://proxy.company.com:8080
-   export HTTPS_PROXY=http://proxy.company.com:8080
-   ```
+```bash
+export HTTP_PROXY=http://proxy.company.com:8080
+export HTTPS_PROXY=http://proxy.company.com:8080
+```
 
 ### SSL Certificate Errors
 
 **Solutions:**
 
 1. **Update CA Certificates:**
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get update && sudo apt-get install ca-certificates
+```bash
+# Ubuntu/Debian
+sudo apt-get update && sudo apt-get install ca-certificates
 
-   # CentOS/RHEL
-   sudo yum update ca-certificates
-   ```
+# CentOS/RHEL
+sudo yum update ca-certificates
+```
 
 2. **Use System CA Bundle:**
-   ```bash
-   export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-   ```
+```bash
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+```
 
 ## Advanced Troubleshooting
 
@@ -552,26 +604,26 @@ aws cognito-identity get-credentials-for-identity \
 When reporting issues, include:
 
 1. **System Information:**
-   ```bash
-   python --version
-   pip show aws-cognito-auth
-   aws --version
-   ```
+```bash
+python --version
+pip show aws-cognito-auth
+aws --version
+```
 
 2. **Configuration (sanitized):**
-   ```bash
-   # Remove sensitive values before sharing
-   cat ~/.cognito-cli-config.json
-   ```
+```bash
+# Remove sensitive values before sharing
+cat ~/.cognito-cli-config.json
+```
 
 3. **Error Output:**
-   ```bash
-   # Full command and error output
-   cogauth login -u test-user 2>&1
-   ```
+```bash
+# Full command and error output
+cogauth login -u test-user 2>&1
+```
 
 4. **Debug Logs:**
-   ```bash
-   # Run with debug mode
-   BOTO_DEBUG=1 cogauth login -u test-user > debug.log 2>&1
-   ```
+```bash
+# Run with debug mode
+BOTO_DEBUG=1 cogauth login -u test-user > debug.log 2>&1
+```

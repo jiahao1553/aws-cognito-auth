@@ -2,15 +2,30 @@
 
 Detailed guide to configuring the AWS Cognito Authoriser for different environments and use cases.
 
+## Configuration Loading Priority
+
+The AWS Cognito Authoriser uses a hierarchical configuration system that loads settings in the following priority order (highest to lowest):
+
+### Administrative Configuration Priority
+1. **Local project admin config** (`./admin-config.json`) - **Highest priority**
+2. **Global admin configuration** (`~/.cognito-admin-config.json`)
+3. **Built-in admin defaults** - **Lowest priority**
+
+### Client Configuration Priority
+1. **Environment variables** - **Highest priority**
+2. **Local project configuration** (`./cognito-cli-config.json`)
+3. **Global configuration** (`~/.cognito-cli-config.json`)
+4. **Built-in client defaults** - **Lowest priority**
+
+This hierarchical system allows you to:
+- Set global defaults for all projects
+- Override settings per project
+- Use environment variables for CI/CD and temporary overrides
+- Always have working fallback defaults
+
 ## Configuration Overview
 
-The AWS Cognito Authoriser uses a hierarchical configuration system:
-
-1. **Built-in defaults** (lowest priority)
-2. **Global configuration** (`~/.cognito-cli-config.json`)
-3. **Global admin configuration** (`~/.cognito-admin-config.json`)
-4. **Local project configuration** (`cognito-cli-config.json` and `admin-config.json`)
-5. **Environment variables** (highest priority)
+The system uses separate configuration chains for administrative tools and client authentication, allowing fine-grained control over different aspects of the system.
 
 ## Client Configuration
 

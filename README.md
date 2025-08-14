@@ -186,88 +186,19 @@ aws sts get-caller-identity
 aws s3 sync s3://my-bucket/my-folder ./local-folder
 ```
 
-## 🛠️ AWS Infrastructure Setup
+## 🔑 IAM Setup for Longer-Lived Credentials
 
-### Option 1: Automated Setup (Recommended)
+### Complete IAM Configuration Requirements
 
-Use the provided administrative commands:
+For the Lambda proxy to provide longer-lived credentials (up to 12 hours), you need to set up three key IAM components:
 
-```bash
-# Deploy complete Lambda infrastructure with new IAM user
-cogadmin lambda deploy --create-user
+#### 1. IAM User for Lambda Proxy
 
-# Or deploy with existing IAM user credentials
-cogadmin lambda deploy --access-key-id AKIA... --secret-access-key ...
+Create an IAM user that the Lambda function will use to assume the long-lived role:
 
-# Set up new Cognito Identity Pool interactively
-cogadmin setup-identity-pool
+**User Name**: `cognito-proxy-user` (or your configured name)
 
-# View current role configuration
-cogadmin role info
-```
-
-### Option 2: Manual Setup
-
-If you prefer to set up AWS infrastructure manually, follow these steps:
-
-#### 1. Cognito User Pool
-
-Create a User Pool with the following settings:
-- **Sign-in options**: Username
-- **Password policy**: As per your security requirements
-- **MFA**: Optional but recommended
-- **App client**:
-  - Client type: Public client
-  - Authentication flows: `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH`
-
-Required information:
-- User Pool ID (format: `us-east-1_xxxxxxxxx`)
-- App Client ID
-
-#### 2. Cognito Identity Pool
-
-Create an Identity Pool with:
-- **Authentication providers**: Cognito User Pool
-- **User Pool ID**: Your User Pool ID from step 1
-- **App Client ID**: Your App Client ID from step 1
-
-Required information:
-- Identity Pool ID (format: `us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-
-#### 3. IAM Roles
-
-The Identity Pool creates two roles automatically. You need to configure the **authenticated role**:
-
-**Minimum permissions for Cognito authenticated role:**
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "cognito-identity:GetCredentialsForIdentity",
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": "lambda:InvokeFunction",
-            "Resource": "arn:aws:lambda:REGION:ACCOUNT:function:cognito-credential-proxy"
-        }
-    ]
-}
-```
-
-#### 4. Lambda Proxy (Optional - for 12-hour credentials)
-
-Create a Lambda function with:
-- **Runtime**: Python 3.9+
-- **Code**: Use `src/aws_cognito_auth/lambda_function.py`
-- **Environment variables**:
-  - `IAM_USER_ACCESS_KEY_ID`: IAM user access key ID
-  - `IAM_USER_SECRET_ACCESS_KEY`: IAM user secret access key
-  - `DEFAULT_ROLE_ARN`: Long-lived role ARN
-
-**IAM User for Lambda** (minimum permissions):
+**Inline Policy**: `CognitoCredentialProxyAccess`
 ```json
 {
     "Version": "2012-10-17",
@@ -278,13 +209,21 @@ Create a Lambda function with:
                 "sts:AssumeRole",
                 "sts:TagSession"
             ],
-            "Resource": "arn:aws:iam::ACCOUNT:role/CognitoLongLivedRole"
+            "Resource": "arn:aws:iam::YOUR_ACCOUNT_ID:role/CognitoLongLivedRole"
         }
     ]
 }
 ```
 
-**Long-lived Role Trust Policy**:
+**Important**: Generate access keys for this user and configure them in the Lambda function's environment variables.
+
+#### 2. Long-Lived IAM Role
+
+Create a role that users will assume for extended access:
+
+**Role Name**: `CognitoLongLivedRole` (or your configured name)
+
+**Trust Policy** (Critical - must include both AssumeRole and TagSession):
 ```json
 {
     "Version": "2012-10-17",
@@ -292,12 +231,16 @@ Create a Lambda function with:
         {
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::ACCOUNT:user/cognito-proxy-user"
+                "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:user/cognito-proxy-user"
             },
-            "Action": "sts:AssumeRole",
+            "Action": ["sts:AssumeRole", "sts:TagSession"],
             "Condition": {
                 "StringEquals": {
-                    "aws:RequestedRegion": ["us-east-1", "us-west-2", "ap-southeast-1"]
+                    "aws:RequestedRegion": [
+                        "ap-southeast-1",
+                        "us-east-1",
+                        "us-west-2"
+                    ]
                 }
             }
         }
@@ -305,318 +248,56 @@ Create a Lambda function with:
 }
 ```
 
-## 📋 Role and Policy Management
+**Permissions Policy**: Add policies based on what AWS services your users need access to (S3, DynamoDB, etc.) with Longer-Lived Credentials
 
-### Role Manager Tool
+#### 3. Lambda Execution Role
 
-The project includes comprehensive administrative tools for handling IAM policies and AWS infrastructure:
+The Lambda function itself needs an execution role:
 
-```bash
-# View current Identity Pool role information
-cogadmin role info
+**Role Name**: `CognitoCredentialProxyRole` (or your configured name)
 
-# Create S3 policy with user isolation (Cognito identity-based)
-cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific
-
-# Create S3 policy with full bucket access
-cogadmin policy create-s3-policy --bucket-name my-bucket
-
-# Create DynamoDB policy with user isolation
-cogadmin policy create-dynamodb-policy --table-name my-table
-
-# Apply custom policy from JSON file
-cogadmin role apply-policy --policy-file my-policy.json --policy-name MyPolicy
-
-# Deploy Lambda credential proxy infrastructure
-cogadmin lambda deploy --create-user
-```
-
-### Service-Specific Permissions
-
-#### S3 Access (User Isolation)
+**Trust Policy**:
 ```json
 {
     "Version": "2012-10-17",
     "Statement": [
         {
             "Effect": "Allow",
-            "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-            "Resource": "arn:aws:s3:::BUCKET/${cognito-identity.amazonaws.com:sub}/*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": "s3:ListBucket",
-            "Resource": "arn:aws:s3:::BUCKET",
-            "Condition": {
-                "StringLike": {
-                    "s3:prefix": "${cognito-identity.amazonaws.com:sub}/*"
-                }
-            }
+            "Principal": {
+                "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
         }
     ]
 }
 ```
 
-#### DynamoDB Access
+**Managed Policies**:
+- `arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole`
+
+### Lambda Environment Variables
+
+Configure these in your Lambda function:
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `IAM_USER_ACCESS_KEY_ID` | Access key ID of the IAM user | `AKIA...` |
+| `IAM_USER_SECRET_ACCESS_KEY` | Secret access key of the IAM user | `Ke8TqmD2wgL...` |
+| `DEFAULT_ROLE_ARN` | ARN of the long-lived role | `arn:aws:iam::123456789012:role/CognitoLongLivedRole` |
+
+### Identity Pool Configuration (Only setup for Cognito Identity Pool 1hr Credentials)
+
+Your Cognito authenticated role (different from `Long-Lived IAM Role` and `Lambda Execution Role`) needs permission to invoke the Lambda function:
+
+**Add to Identity Pool's authenticated role permission policy**:
 ```json
 {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "dynamodb:GetItem",
-                "dynamodb:PutItem",
-                "dynamodb:UpdateItem",
-                "dynamodb:DeleteItem",
-                "dynamodb:Query"
-            ],
-            "Resource": "arn:aws:dynamodb:REGION:ACCOUNT:table/TABLE_NAME",
-            "Condition": {
-                "ForAllValues:StringEquals": {
-                    "dynamodb:LeadingKeys": "${cognito-identity.amazonaws.com:sub}"
-                }
-            }
-        }
-    ]
+    "Effect": "Allow",
+    "Action": "lambda:InvokeFunction",
+    "Resource": "arn:aws:lambda:YOUR_REGION:YOUR_ACCOUNT:function:cognito-credential-proxy"
 }
 ```
-
-#### Lambda Execution
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "lambda:InvokeFunction",
-            "Resource": [
-                "arn:aws:lambda:REGION:ACCOUNT:function:user-function-*",
-                "arn:aws:lambda:REGION:ACCOUNT:function:cognito-credential-proxy"
-            ]
-        }
-    ]
-}
-```
-
-## 🔧 Advanced Configuration
-
-### Environment Variables
-
-```bash
-# Cognito Configuration
-export COGNITO_USER_POOL_ID="us-east-1_xxxxxxxxx"
-export COGNITO_CLIENT_ID="your-client-id"
-export COGNITO_IDENTITY_POOL_ID="us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-export AWS_REGION="us-east-1"
-
-# Note: Lambda proxy credentials are configured in the Lambda function environment,
-# not in the client application for security reasons
-```
-
-### Multiple Environment Setup
-
-```bash
-# Development environment
-cogauth login -u dev-user --profile development
-
-# Production environment
-cogauth login -u prod-user --profile production
-
-# Use with different profiles
-aws --profile development s3 ls
-aws --profile production s3 ls
-```
-
-## ⚙️ Admin Configuration
-
-### Configuration System
-
-The AWS Cognito Authoriser uses a hierarchical configuration system for administrative settings that allows you to customize AWS service names and parameters without modifying code.
-
-### Configuration Files
-
-1. **Global Admin Config**: `~/.cognito-admin-config.json` - User-level settings
-2. **Local Project Config**: `admin-config.json` - Project-specific overrides
-3. **Default Values**: Built-in defaults for all services
-
-### Interactive Configuration
-
-Set up admin configuration interactively:
-```bash
-cogadmin configure
-```
-
-This command will prompt you to configure:
-- AWS service names (IAM users, roles, Lambda functions)
-- AWS configuration parameters (regions, timeouts, session duration)
-- Policy names for all components
-
-### Configuration Template
-
-Create `admin-config.json` in your project directory or `~/.cognito-admin-config.json` in your home directory:
-
-```json
-{
-  "aws_service_names": {
-    "iam_user_name": "CognitoCredentialProxyUser",
-    "lambda_execution_role_name": "CognitoCredentialProxyRole",
-    "long_lived_role_name": "CognitoLongLivedRole",
-    "lambda_function_name": "cognito-credential-proxy",
-    "identity_pool_name": "CognitoAuthIdentityPool",
-    "policy_names": {
-      "lambda_user_policy": "CognitoCredentialProxyPolicy",
-      "lambda_execution_policy": "CognitoCredentialProxyPolicy",
-      "s3_access_policy": "S3AccessPolicy"
-    }
-  },
-  "aws_configuration": {
-    "default_region": "ap-southeast-1",
-    "lambda_runtime": "python3.9",
-    "lambda_timeout": 30,
-    "max_session_duration": 43200,
-    "default_bucket": "my-s3-bucket"
-  }
-}
-```
-
-### Environment-Specific Configurations
-
-**Development Environment:**
-```json
-{
-  "aws_service_names": {
-    "long_lived_role_name": "CognitoDevRole",
-    "lambda_function_name": "cognito-proxy-dev"
-  },
-  "aws_configuration": {
-    "default_bucket": "my-dev-bucket"
-  }
-}
-```
-
-**Production Environment:**
-```json
-{
-  "aws_service_names": {
-    "long_lived_role_name": "CognitoProdRole",
-    "lambda_function_name": "cognito-proxy-prod"
-  },
-  "aws_configuration": {
-    "default_bucket": "my-prod-bucket",
-    "max_session_duration": 28800
-  }
-}
-```
-
-### Configuration Loading Priority
-
-1. **Built-in defaults** (lowest priority)
-2. **Global config** (`~/.cognito-admin-config.json`)
-3. **Local project config** (`admin-config.json`) (highest priority)
-
-### Configurable Components
-
-#### AWS Service Names
-- **IAM User Name**: User for Lambda proxy authentication
-- **Lambda Execution Role**: Role for Lambda function execution
-- **Long-lived Role**: Role users assume for extended credentials
-- **Lambda Function Name**: Name of the credential proxy function
-- **Identity Pool Name**: Cognito Identity Pool name
-
-#### AWS Configuration Parameters
-- **Default Region**: Primary AWS region for deployments
-- **Lambda Runtime**: Python version for Lambda functions
-- **Lambda Timeout**: Function execution timeout in seconds
-- **Max Session Duration**: Maximum credential lifetime (up to 12 hours)
-- **Default Bucket**: S3 bucket for basic access policies
-
-#### Policy Names
-- **Lambda User Policy**: Policy for Lambda IAM user
-- **Lambda Execution Policy**: Basic execution policy
-- **S3 Access Policy**: Default S3 access policy name
-
-### Admin Features
-
-The administrative tool provides comprehensive AWS infrastructure management:
-
-```bash
-# Configure admin settings interactively
-cogadmin configure
-
-# View Identity Pool role configuration
-cogadmin role info
-
-# Create service-specific policies
-cogadmin policy create-s3-policy --bucket-name my-bucket --user-specific
-cogadmin policy create-dynamodb-policy --table-name my-table
-
-# Apply custom policies
-cogadmin role apply-policy --policy-file custom-policy.json --policy-name MyPolicy
-
-# Deploy Lambda infrastructure
-cogadmin lambda deploy --create-user
-
-# Set up new Cognito Identity Pool
-cogadmin setup-identity-pool
-```
-
-## 📊 Monitoring and Logging
-
-### CloudWatch Logs
-
-Monitor Lambda proxy execution:
-```bash
-aws logs tail /aws/lambda/cognito-credential-proxy --follow
-```
-
-### Debug Mode
-
-Enable detailed logging:
-```bash
-export BOTO_DEBUG=1
-cogauth login -u username
-```
-
-## ❗ Troubleshooting
-
-### Common Issues
-
-| Issue | Solution |
-|-------|----------|
-| "Missing configuration" | Run `configure` command or set environment variables |
-| "Invalid username or password" | Verify credentials in Cognito console; check if password reset needed |
-| "Access denied" with AWS commands | Check IAM policies on Identity Pool authenticated role |
-| "Lambda proxy failed" | Check Lambda function logs; verify IAM user permissions |
-| "Unable to locate credentials" | Ensure fallback credentials are configured; check Lambda environment variables |
-
-### Error Messages
-
-**"Identity Pool configuration error"**
-- Solution: Configure Identity Pool to accept tokens from your User Pool
-- Check: AWS Console → Cognito → Identity Pool → Authentication providers
-
-**"AssumeRoleWithWebIdentity" access denied**
-- Solution: Update role trust policy to allow web identity federation
-- Check: IAM role trust policy for Identity Pool authenticated role
-
-**"Lambda function not found"**
-- Solution: Deploy Lambda function using `cogadmin lambda deploy`
-- Verify: Function name matches your configuration (default: `cognito-credential-proxy`)
-
-### Testing Setup
-
-```bash
-# Test configuration
-cogauth status
-
-# Test authentication (will show detailed error messages)
-cogauth login -u test-user
-
-# Test AWS access
-aws sts get-caller-identity
-aws s3 ls
-```
+**Permissions Policy**: Add policies based on what AWS services your users need access to (S3, DynamoDB, etc.) with Cognito Identity Pool 1hr Credentials
 
 ## 🔒 Security Considerations
 
