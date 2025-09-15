@@ -85,7 +85,7 @@ class CognitoAuthenticator:
                                 }
                                 prompt_text = prompts.get(display_attr, f"Enter {display_attr}")
                                 challenge_responses[challenge_attr] = click.prompt(prompt_text)
-                        print(challenge_responses)
+
                     response = self.cognito_idp.admin_respond_to_auth_challenge(
                         ClientId=self.client_id,
                         ChallengeName="NEW_PASSWORD_REQUIRED",
