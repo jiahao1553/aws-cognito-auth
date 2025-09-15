@@ -49,11 +49,49 @@ class CognitoAuthenticator:
                     click.echo("New password required. Please set a new password.")
                     new_password = getpass.getpass("Enter new password: ")
 
+                    # Start with basic required responses
+                    challenge_responses = {"USERNAME": username, "NEW_PASSWORD": new_password}
+
+                    # Get required attributes from the challenge parameters
+                    required_attributes = response.get("ChallengeParameters", {}).get("requiredAttributes", "")
+                    if required_attributes:
+                        click.echo("Additional user information is required:")
+                        # Parse JSON string array of required attributes
+                        try:
+                            import json
+
+                            attr_list = json.loads(required_attributes) if required_attributes else []
+                        except json.JSONDecodeError:
+                            # Fallback to comma-separated parsing if not JSON
+                            attr_list = [attr.strip() for attr in required_attributes.split(",") if attr.strip()]
+
+                        for attr in attr_list:
+                            # Remove userAttributes. prefix for display/prompt purposes
+                            display_attr = attr.replace("userAttributes.", "")
+                            # Use the correct AWS format for challenge response
+                            challenge_attr = (
+                                f"userAttributes.{display_attr}" if not attr.startswith("userAttributes.") else attr
+                            )
+
+                            if display_attr and challenge_attr not in challenge_responses:
+                                # Create user-friendly prompts for common attributes
+                                prompts = {
+                                    "name": "Enter your full name",
+                                    "given_name": "Enter your first name",
+                                    "family_name": "Enter your last name",
+                                    "email": "Enter your email address",
+                                    "phone_number": "Enter your phone number",
+                                    "preferred_username": "Enter your preferred username",
+                                }
+                                prompt_text = prompts.get(display_attr, f"Enter {display_attr}")
+                                challenge_responses[challenge_attr] = click.prompt(prompt_text)
+
                     response = self.cognito_idp.admin_respond_to_auth_challenge(
                         ClientId=self.client_id,
                         ChallengeName="NEW_PASSWORD_REQUIRED",
                         Session=response["Session"],
-                        ChallengeResponses={"USERNAME": username, "NEW_PASSWORD": new_password},
+                        ChallengeResponses=challenge_responses,
+                        UserPoolId=self.user_pool_id,
                     )
                 else:
                     raise Exception(f"Unsupported challenge: {response['ChallengeName']}")
