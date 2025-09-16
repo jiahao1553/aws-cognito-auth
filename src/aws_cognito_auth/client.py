@@ -10,18 +10,33 @@ import getpass
 import json
 import os
 import sys
+import urllib
+import webbrowser
 from pathlib import Path
 
 import boto3
 import click
 from botocore.exceptions import ClientError
 
+DEFAULT_REDIRECT_URI = "http://localhost"
+
+
+def _safe_open_browser(url):
+    """Safely attempt to open URL in browser, handling GUI-less environments"""
+    try:
+        webbrowser.open(url)
+        return True
+    except Exception:
+        # Silently fail if browser opening is not possible (e.g., headless server)
+        return False
+
 
 class CognitoAuthenticator:
-    def __init__(self, user_pool_id, client_id, identity_pool_id, region=None):
+    def __init__(self, user_pool_id, client_id, identity_pool_id, region=None, managed_login_url=None):
         self.user_pool_id = user_pool_id
         self.client_id = client_id
         self.identity_pool_id = identity_pool_id
+        self.managed_login_url = managed_login_url
 
         # Extract region from user pool ID if not provided
         if region is None:
@@ -35,6 +50,20 @@ class CognitoAuthenticator:
         self.cognito_idp = boto3.client("cognito-idp", region_name=self.region)
         self.cognito_identity = boto3.client("cognito-identity", region_name=self.region)
 
+    def _construct_managed_login_url(self):
+        """Construct the managed login URL when not provided"""
+        if self.managed_login_url:
+            return self.managed_login_url
+
+        # Construct the URL using the standard Cognito domain format
+        # Format: https://<your-domain>.auth.<region>.amazoncognito.com/login?client_id=<client_id>&response_type=code&redirect_uri=<redirect_uri>
+        domain_prefix = (
+            str(self.user_pool_id).lower().replace(f"{self.region}_", self.region)
+        )  # Use user pool ID as domain prefix
+        redirect_uri = urllib.parse.quote(DEFAULT_REDIRECT_URI, safe="")
+
+        return f"https://{domain_prefix}.auth.{self.region}.amazoncognito.com/login?client_id={self.client_id}&response_type=code&redirect_uri={redirect_uri}"
+
     def authenticate_user(self, username, password):
         """Authenticate user with Cognito User Pool"""
         try:
@@ -45,56 +74,23 @@ class CognitoAuthenticator:
             )
 
             if "ChallengeName" in response:
-                if response["ChallengeName"] == "NEW_PASSWORD_REQUIRED":
-                    click.echo("New password required. Please set a new password.")
-                    new_password = getpass.getpass("Enter new password: ")
+                challenge_name = response["ChallengeName"]
+                click.echo(f"🔐 Authentication challenge detected: {challenge_name}")
+                click.echo(
+                    "Please use the managed login page to complete authentication. Come back later with your updated password."
+                )
 
-                    # Start with basic required responses
-                    challenge_responses = {"USERNAME": username, "NEW_PASSWORD": new_password}
+                login_url = self._construct_managed_login_url()
+                click.echo(f"🔗 {login_url}")
 
-                    # Get required attributes from the challenge parameters
-                    required_attributes = response.get("ChallengeParameters", {}).get("requiredAttributes", "")
-                    if required_attributes:
-                        click.echo("Additional user information is required:")
-                        # Parse JSON string array of required attributes
-                        try:
-                            import json
-
-                            attr_list = json.loads(required_attributes) if required_attributes else []
-                        except json.JSONDecodeError:
-                            # Fallback to comma-separated parsing if not JSON
-                            attr_list = [attr.strip() for attr in required_attributes.split(",") if attr.strip()]
-
-                        for attr in attr_list:
-                            # Remove userAttributes. prefix for display/prompt purposes
-                            display_attr = attr.replace("userAttributes.", "")
-                            # Use the correct AWS format for challenge response
-                            challenge_attr = (
-                                f"userAttributes.{display_attr}" if not attr.startswith("userAttributes.") else attr
-                            )
-
-                            if display_attr and challenge_attr not in challenge_responses:
-                                # Create user-friendly prompts for common attributes
-                                prompts = {
-                                    "name": "Enter your full name",
-                                    "given_name": "Enter your first name",
-                                    "family_name": "Enter your last name",
-                                    "email": "Enter your email address",
-                                    "phone_number": "Enter your phone number",
-                                    "preferred_username": "Enter your preferred username",
-                                }
-                                prompt_text = prompts.get(display_attr, f"Enter {display_attr}")
-                                challenge_responses[challenge_attr] = click.prompt(prompt_text)
-
-                    response = self.cognito_idp.admin_respond_to_auth_challenge(
-                        ClientId=self.client_id,
-                        ChallengeName="NEW_PASSWORD_REQUIRED",
-                        Session=response["Session"],
-                        ChallengeResponses=challenge_responses,
-                        UserPoolId=self.user_pool_id,
-                    )
+                # Try to open the URL in browser automatically
+                if _safe_open_browser(login_url):
+                    click.echo("🌐 Opening login page in your default browser...")
                 else:
-                    raise Exception(f"Unsupported challenge: {response['ChallengeName']}")
+                    click.echo("💻 Please copy and paste the URL above into your browser")
+
+                # Return a special indicator that this is an expected challenge flow
+                return {"challenge_redirect": True, "challenge_name": challenge_name, "login_url": login_url}
 
             tokens = response["AuthenticationResult"]
             # Return keys matching tests (both original and lowercase aliases)
@@ -420,6 +416,13 @@ def configure():
         show_default=False,
     )
 
+    # Managed login URL is optional
+    managed_login_url = click.prompt(
+        "Managed Login Page URL (optional, will construct if not provided)",
+        default=config.get("managed_login_url", ""),
+        show_default=False,
+    )
+
     # Save configuration
     new_config = {
         "user_pool_id": user_pool_id,
@@ -429,6 +432,9 @@ def configure():
 
     if region:
         new_config["region"] = region
+
+    if managed_login_url:
+        new_config["managed_login_url"] = managed_login_url
 
     save_config(new_config)
 
@@ -472,17 +478,24 @@ def login(username, profile, no_lambda_proxy, duration):
             client_id=config["client_id"],
             identity_pool_id=config["identity_pool_id"],
             region=config.get("region"),
+            managed_login_url=config.get("managed_login_url"),
         )
 
         # Authenticate user
         print(f"🔐 Authenticating user: {username}")
-        tokens = authenticator.authenticate_user(username, password)
+        auth_result = authenticator.authenticate_user(username, password)
+
+        # Check if this is a challenge redirect (expected flow)
+        if auth_result.get("challenge_redirect"):
+            print("📋 Please complete authentication using the managed login page shown above.")
+            sys.exit(0)  # Exit gracefully, not as an error
+
         print("✅ User authenticated successfully")
 
         # Get temporary credentials
         use_lambda_proxy = not no_lambda_proxy
         credentials = authenticator.get_temporary_credentials(
-            tokens["IdToken"], use_lambda_proxy=use_lambda_proxy, duration_hours=duration
+            auth_result["IdToken"], use_lambda_proxy=use_lambda_proxy, duration_hours=duration
         )
 
         # Update AWS profile
@@ -525,7 +538,7 @@ def status():
         click.echo("✅ Configuration loaded")
     click.echo("📋 Current Configuration:")
 
-    for key in ["user_pool_id", "client_id", "identity_pool_id", "region"]:
+    for key in ["user_pool_id", "client_id", "identity_pool_id", "region", "managed_login_url"]:
         value = config.get(key)
         if value:
             click.echo(f"  {key}: {value}")
