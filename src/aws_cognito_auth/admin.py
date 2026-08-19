@@ -247,6 +247,20 @@ class LambdaDeployer:
             role = self.iam.get_role(RoleName=role_name)
             return role["Role"]["Arn"]
 
+    def _get_pool_ids(self):
+        """Resolve Cognito pool IDs from admin config, falling back to the client config"""
+        identity_pool_id = self.admin_config.get("identity_pool_id")
+        user_pool_id = self.admin_config.get("user_pool_id")
+
+        if not identity_pool_id or not user_pool_id:
+            from .client import load_config as client_load_config
+
+            client_config = client_load_config() or {}
+            identity_pool_id = identity_pool_id or client_config.get("identity_pool_id")
+            user_pool_id = user_pool_id or client_config.get("user_pool_id")
+
+        return identity_pool_id, user_pool_id
+
     def deploy_lambda_function(self, lambda_role_arn, user_credentials, lambda_code_path=None):
         """Create and deploy Lambda function"""
         # Use default lambda function if no path provided
@@ -271,6 +285,17 @@ class LambdaDeployer:
             "IAM_USER_ACCESS_KEY_ID": user_credentials["access_key_id"],
             "IAM_USER_SECRET_ACCESS_KEY": user_credentials["secret_access_key"],
         }
+
+        # Pool IDs let the Lambda validate the ID token and read group membership
+        identity_pool_id, user_pool_id = self._get_pool_ids()
+        if identity_pool_id:
+            environment_vars["IDENTITY_POOL_ID"] = identity_pool_id
+        else:
+            print("⚠️  IDENTITY_POOL_ID not set: add 'identity_pool_id' to admin-config.json or run cogauth configure")
+        if user_pool_id:
+            environment_vars["USER_POOL_ID"] = user_pool_id
+        else:
+            print("⚠️  USER_POOL_ID not set: add 'user_pool_id' to admin-config.json or run cogauth configure")
 
         try:
             response = self.lambda_client.create_function(

@@ -181,10 +181,75 @@ cogauth login -u myuser
 # ✅ Successfully upgraded to longer-lived credentials (expires at 2025-08-13 01:30:00 PST)
 
 # 3. Use AWS CLI commands
-aws s3 ls
 aws sts get-caller-identity
+aws s3 ls s3://my-bucket/
 aws s3 sync s3://my-bucket/my-folder ./local-folder
 ```
+
+> **Note:** `aws s3 ls` with no bucket argument lists *all* buckets in the account and needs
+> account-wide `s3:ListAllMyBuckets`, which cannot be scoped per user. Always name the bucket:
+> `aws s3 ls s3://my-bucket/`.
+
+## 🪣 Bucket Access via Cognito Groups
+
+Which S3 buckets you can reach is decided by the **Cognito user pool groups you belong to**. Each
+group is named after a bucket, and one user can be in as many groups as they need.
+
+When you run `cogauth login`, the Lambda proxy reads your group membership and issues credentials
+scoped to exactly those buckets. From there you use the AWS CLI normally:
+
+```bash
+cogauth login -u alice
+
+# alice is in the "acme-reports" group
+aws s3 sync s3://acme-reports/data ./local-folder     # works
+aws s3 sync s3://acme-finance ./local-folder          # AccessDenied
+```
+
+A few things worth knowing:
+
+- **Scoping is fixed at login.** Your buckets are baked into the credentials when you log in, not
+  re-checked per command. Being added to a group takes effect the next time you run `cogauth login`.
+- **Removal is not immediate.** Credentials already issued keep their access until they expire (up
+  to 12 hours). Use `--duration` to shorten that window.
+- **`AccessDenied` on a bucket you expect to have** usually means you are not in that group. Check
+  with your administrator.
+- **If login prints `⚠️ Lambda proxy failed`**, you fell back to 1-hour Identity Pool credentials
+  and will have no bucket access. This is also what a user belonging to *no* groups sees.
+
+### For administrators
+
+Groups are plain Cognito user pool groups — no special tooling required:
+
+```bash
+# Create a group named after the bucket it grants
+aws cognito-idp create-group \
+  --user-pool-id <USER_POOL_ID> --group-name acme-reports
+
+# Add a user to it
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id <USER_POOL_ID> --username alice --group-name acme-reports
+
+# Check a user's buckets
+aws cognito-idp admin-list-groups-for-user \
+  --user-pool-id <USER_POOL_ID> --username alice
+```
+
+Group names must be valid S3 bucket names (3–63 characters, lowercase letters, digits, hyphens and
+dots). Every group in the pool is interpreted as a bucket grant, so do not create groups here for
+unrelated purposes.
+
+**How the enforcement works:** `CognitoLongLivedRole` holds a broad policy covering every managed
+bucket, and the Lambda narrows each session at `AssumeRole` time with an inline session policy
+naming only the caller's group-buckets. Effective access is the intersection of the two. The Lambda
+establishes identity by passing the ID token to `cognito-identity:GetId` — Cognito must verify the
+token's signature to federate on it, so a successful call proves the `cognito:groups` claim can be
+trusted.
+
+> **⚠️ The Identity Pool authenticated role must have no S3 permissions.** The client falls back to
+> that role whenever the Lambda call fails, and `--no-lambda-proxy` skips the Lambda entirely.
+> Either path bypasses group scoping completely. See
+> [Group-Scoped Bucket Access](docs/group-bucket-access.md) for the full rollout procedure.
 
 ## 🔑 IAM Setup for Longer-Lived Credentials
 
@@ -284,6 +349,12 @@ Configure these in your Lambda function:
 | `IAM_USER_ACCESS_KEY_ID` | Access key ID of the IAM user | `AKIA...` |
 | `IAM_USER_SECRET_ACCESS_KEY` | Secret access key of the IAM user | `Ke8TqmD2wgL...` |
 | `DEFAULT_ROLE_ARN` | ARN of the long-lived role | `arn:aws:iam::123456789012:role/CognitoLongLivedRole` |
+| `IDENTITY_POOL_ID` | Identity Pool used to validate the caller's ID token | `ap-southeast-1:1234abcd-...` |
+| `USER_POOL_ID` | User Pool the groups belong to | `ap-southeast-1_AbCdEf123` |
+
+`IDENTITY_POOL_ID` and `USER_POOL_ID` are required for group-based bucket access.
+`cogadmin lambda deploy` sets them automatically from `admin-config.json`, falling back to
+`~/.cognito-cli-config.json`.
 
 ### Identity Pool Configuration (Only setup for Cognito Identity Pool 1hr Credentials)
 

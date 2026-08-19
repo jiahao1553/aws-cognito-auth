@@ -16,6 +16,7 @@ nav:
   - Configuration:
     - Configuration Guide: configuration.md
     - Administration: administration.md
+    - Group-Scoped Bucket Access: group-bucket-access.md
   - Reference:
     - API Reference: modules.md
     - Troubleshooting: troubleshooting.md
@@ -55,6 +56,7 @@ extra:
       link: https://pypi.org/project/aws-cognito-auth
 
 markdown_extensions:
+  - admonition
   - toc:
       permalink: true
   - pymdownx.arithmatex:
