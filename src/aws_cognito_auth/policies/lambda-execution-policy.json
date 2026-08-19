@@ -9,6 +9,11 @@
         "logs:PutLogEvents"
       ],
       "Resource": "arn:aws:logs:*:*:*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "cognito-identity:GetId",
+      "Resource": "*"
     }
   ]
 }
