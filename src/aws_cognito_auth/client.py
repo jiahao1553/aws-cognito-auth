@@ -10,7 +10,7 @@ import getpass
 import json
 import os
 import sys
-import urllib
+import urllib.parse
 import webbrowser
 from pathlib import Path
 
