@@ -74,23 +74,18 @@ class TestCognitoAuthenticator:
             AuthParameters={"USERNAME": "testuser", "PASSWORD": "testpass"},
         )
 
+    @patch("aws_cognito_auth.client._safe_open_browser", return_value=True)
     @patch("boto3.client")
-    def test_authenticate_user_new_password_required(self, mock_boto_client):
-        """Test authentication with new password required challenge"""
+    def test_authenticate_user_new_password_required(self, mock_boto_client, mock_open_browser):
+        """Challenges are handed off to the managed login page, not answered in the CLI"""
         mock_cognito_idp = MagicMock()
         mock_boto_client.return_value = mock_cognito_idp
 
-        # First call returns challenge
-        challenge_response = {
+        mock_cognito_idp.initiate_auth.return_value = {
             "ChallengeName": "NEW_PASSWORD_REQUIRED",
             "Session": "test-session",
             "ChallengeParameters": {},
         }
-        # Second call returns success
-        success_response = {"AuthenticationResult": {"IdToken": "new-id-token", "AccessToken": "new-access-token"}}
-
-        mock_cognito_idp.initiate_auth.return_value = challenge_response
-        mock_cognito_idp.admin_respond_to_auth_challenge.return_value = success_response
 
         auth = CognitoAuthenticator(
             user_pool_id="us-east-1_TEST123",
@@ -98,11 +93,16 @@ class TestCognitoAuthenticator:
             identity_pool_id="us-east-1:test-identity-pool",
         )
 
-        with patch("getpass.getpass", return_value="newpassword123"):
-            result = auth.authenticate_user("testuser", "oldpassword")
+        result = auth.authenticate_user("testuser", "oldpassword")
 
-        assert result is not None
-        assert result["IdToken"] == "new-id-token"
+        assert result["challenge_redirect"] is True
+        assert result["challenge_name"] == "NEW_PASSWORD_REQUIRED"
+        assert result["login_url"].startswith("https://")
+        mock_open_browser.assert_called_once_with(result["login_url"])
+
+        # No tokens are issued, and the challenge is never answered in-process
+        assert "IdToken" not in result
+        mock_cognito_idp.admin_respond_to_auth_challenge.assert_not_called()
 
     @patch("boto3.client")
     def test_authenticate_user_failure(self, mock_boto_client):

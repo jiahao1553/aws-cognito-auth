@@ -252,7 +252,9 @@ class TestConfigurationFunctions:
 
     def test_load_config_default_values(self):
         """Test loading default configuration values"""
-        config = load_config()
+        # Block the on-disk config files so the defaults are what gets returned
+        with patch("pathlib.Path.exists", return_value=False):
+            config = load_config()
 
         # Should return default values
         assert "aws_service_names" in config
