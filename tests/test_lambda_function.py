@@ -5,12 +5,17 @@ Unit tests for the Lambda function module
 import json
 import os
 from datetime import datetime, timezone
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import ClientError
 
-from aws_cognito_auth.lambda_function import lambda_handler, validate_cognito_token
+from aws_cognito_auth.lambda_function import (
+    build_session_policy,
+    lambda_handler,
+    validate_cognito_token,
+)
 
 
 class TestLambdaHandler:
@@ -47,6 +52,8 @@ class TestLambdaHandler:
             "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
             "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
             "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+            "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+            "USER_POOL_ID": "us-east-1_TEST123",
         },
     )
     @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
@@ -54,7 +61,11 @@ class TestLambdaHandler:
     def test_lambda_handler_success(self, mock_boto_client, mock_validate_token):
         """Test successful lambda handler execution"""
         # Mock token validation
-        mock_validate_token.return_value = {"sub": "test-user-id", "cognito:username": "testuser"}
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": "testuser",
+            "cognito:groups": ["test-bucket"],
+        }
 
         # Mock STS client
         mock_sts = MagicMock()
@@ -94,6 +105,7 @@ class TestLambdaHandler:
             RoleArn="arn:aws:iam::123456789012:role/CustomRole",
             RoleSessionName="CognitoAuth-testuser-test-request-id",
             DurationSeconds=7200,
+            Policy=build_session_policy(["test-bucket"]),
             Tags=[
                 {"Key": "CognitoUsername", "Value": "testuser"},
                 {"Key": "CognitoSubject", "Value": "test-user-id"},
@@ -107,12 +119,18 @@ class TestLambdaHandler:
             "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
             "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
             "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+            "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+            "USER_POOL_ID": "us-east-1_TEST123",
         },
     )
     @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
     def test_lambda_handler_default_role(self, mock_validate_token):
         """Test lambda handler using default role from environment"""
-        mock_validate_token.return_value = {"sub": "test-user-id", "cognito:username": "testuser"}
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": "testuser",
+            "cognito:groups": ["test-bucket"],
+        }
 
         with patch("boto3.client") as mock_boto_client:
             mock_sts = MagicMock()
@@ -151,13 +169,19 @@ class TestLambdaHandler:
             "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
             "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
             "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+            "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+            "USER_POOL_ID": "us-east-1_TEST123",
         },
     )
     @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
     @patch("boto3.client")
     def test_lambda_handler_assume_role_failure(self, mock_boto_client, mock_validate_token):
         """Test lambda handler when assume role fails"""
-        mock_validate_token.return_value = {"sub": "test-user-id", "cognito:username": "testuser"}
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": "testuser",
+            "cognito:groups": ["test-bucket"],
+        }
 
         mock_sts = MagicMock()
         mock_boto_client.return_value = mock_sts
@@ -182,10 +206,13 @@ class TestLambdaHandler:
             "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
             "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
             "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+            "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+            "USER_POOL_ID": "us-east-1_TEST123",
         },
     )
+    @patch("aws_cognito_auth.lambda_function.verify_token_with_cognito")
     @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
-    def test_lambda_handler_invalid_token(self, mock_validate_token):
+    def test_lambda_handler_invalid_token(self, mock_validate_token, mock_verify):
         """Test lambda handler with invalid Cognito token"""
         mock_validate_token.side_effect = Exception("Invalid token")
 
@@ -217,6 +244,8 @@ class TestLambdaHandler:
             "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
             "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
             "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+            "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+            "USER_POOL_ID": "us-east-1_TEST123",
         },
     )
     @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
@@ -225,7 +254,11 @@ class TestLambdaHandler:
         """Test lambda handler with long username that needs truncation"""
         # Mock token with very long username
         long_username = "a" * 100  # Very long username
-        mock_validate_token.return_value = {"sub": "test-user-id", "cognito:username": long_username}
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": long_username,
+            "cognito:groups": ["test-bucket"],
+        }
 
         mock_sts = MagicMock()
         mock_boto_client.return_value = mock_sts
@@ -252,6 +285,117 @@ class TestLambdaHandler:
         call_args = mock_sts.assume_role.call_args
         session_name = call_args[1]["RoleSessionName"]
         assert len(session_name) <= 64
+
+
+class TestGroupScoping:
+    """Cognito group membership is what limits which buckets a session can reach"""
+
+    ENV: ClassVar[dict] = {
+        "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
+        "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
+        "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+        "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+        "USER_POOL_ID": "us-east-1_TEST123",
+    }
+
+    def test_session_policy_covers_bucket_and_its_objects(self):
+        """Both the bucket ARN and the object ARN are needed for sync to work"""
+        policy = json.loads(build_session_policy(["acme-reports"]))
+
+        assert policy["Statement"][0]["Resource"] == [
+            "arn:aws:s3:::acme-reports",
+            "arn:aws:s3:::acme-reports/*",
+        ]
+
+    def test_session_policy_omits_buckets_the_user_has_no_group_for(self):
+        policy = build_session_policy(["acme-reports"])
+
+        assert "acme-finance" not in policy
+
+    @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
+    @patch("boto3.client")
+    def test_group_membership_scopes_the_session(self, mock_boto_client, mock_validate_token):
+        """The regression: without a session policy the role's full access leaks through"""
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": "alice",
+            "cognito:groups": ["acme-reports"],
+        }
+        mock_sts = MagicMock()
+        mock_boto_client.return_value = mock_sts
+        mock_sts.assume_role.return_value = {
+            "Credentials": {
+                "AccessKeyId": "AKIALAMBDA123",
+                "SecretAccessKey": "lambda-secret",
+                "SessionToken": "lambda-session-token",
+                "Expiration": datetime.now(timezone.utc),
+            }
+        }
+
+        with patch.dict(os.environ, self.ENV):
+            response = lambda_handler({"id_token": "valid-jwt-token"}, MagicMock())
+
+        assert response["statusCode"] == 200
+
+        policy = mock_sts.assume_role.call_args[1]["Policy"]
+        assert "arn:aws:s3:::acme-reports" in policy
+        assert "acme-finance" not in policy
+
+    @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
+    @patch("boto3.client")
+    def test_user_in_no_groups_gets_no_credentials(self, mock_boto_client, mock_validate_token):
+        mock_validate_token.return_value = {"sub": "test-user-id", "cognito:username": "bob"}
+        mock_sts = MagicMock()
+        mock_boto_client.return_value = mock_sts
+
+        with patch.dict(os.environ, self.ENV):
+            response = lambda_handler({"id_token": "valid-jwt-token"}, MagicMock())
+
+        assert response["statusCode"] == 403
+        mock_sts.assume_role.assert_not_called()
+
+    @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
+    @patch("boto3.client")
+    def test_token_cognito_rejects_gets_no_credentials(self, mock_boto_client, mock_validate_token):
+        """Group claims are only trustworthy because Cognito verified the token first"""
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": "mallory",
+            "cognito:groups": ["acme-finance"],
+        }
+        mock_sts = MagicMock()
+        mock_cognito = MagicMock()
+        mock_cognito.get_id.side_effect = ClientError(
+            {"Error": {"Code": "NotAuthorizedException", "Message": "Invalid login token"}}, "GetId"
+        )
+        mock_boto_client.side_effect = lambda service, **kwargs: (
+            mock_cognito if service == "cognito-identity" else mock_sts
+        )
+
+        with patch.dict(os.environ, self.ENV):
+            response = lambda_handler({"id_token": "forged-jwt-token"}, MagicMock())
+
+        assert response["statusCode"] == 401
+        mock_sts.assume_role.assert_not_called()
+
+    @patch("aws_cognito_auth.lambda_function.validate_cognito_token")
+    @patch("boto3.client")
+    def test_missing_pool_ids_issue_no_credentials(self, mock_boto_client, mock_validate_token):
+        """Without the pool IDs the token cannot be verified, so nothing is issued"""
+        mock_validate_token.return_value = {
+            "sub": "test-user-id",
+            "cognito:username": "alice",
+            "cognito:groups": ["acme-reports"],
+        }
+        mock_sts = MagicMock()
+        mock_boto_client.return_value = mock_sts
+
+        env = {k: v for k, v in self.ENV.items() if k not in ("IDENTITY_POOL_ID", "USER_POOL_ID")}
+        with patch.dict(os.environ, env, clear=True):
+            response = lambda_handler({"id_token": "valid-jwt-token"}, MagicMock())
+
+        assert response["statusCode"] == 500
+        mock_sts.assume_role.assert_not_called()
 
 
 class TestValidateCognitoToken:
@@ -387,6 +531,8 @@ class TestLambdaIntegration:
             "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
             "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
             "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+            "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+            "USER_POOL_ID": "us-east-1_TEST123",
         },
     )
     @patch("boto3.client")
@@ -404,6 +550,7 @@ class TestLambdaIntegration:
             "iss": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_TEST123",
             "iat": int(time.time()),
             "token_use": "id",
+            "cognito:groups": ["acme-reports"],
         }
 
         header = base64.b64encode(json.dumps({"alg": "RS256"}).encode()).decode().rstrip("=")
@@ -495,10 +642,17 @@ class TestLambdaIntegration:
                 "IAM_USER_ACCESS_KEY_ID": "AKIATEST123",
                 "IAM_USER_SECRET_ACCESS_KEY": "test-secret-key",
                 "DEFAULT_ROLE_ARN": "arn:aws:iam::123456789012:role/TestRole",
+                "IDENTITY_POOL_ID": "us-east-1:test-identity-pool",
+                "USER_POOL_ID": "us-east-1_TEST123",
             },
         ):
             # Create valid token
-            payload_data = {"sub": "test-user-id", "exp": int(time.time()) + 3600, "cognito:username": "testuser"}
+            payload_data = {
+                "sub": "test-user-id",
+                "exp": int(time.time()) + 3600,
+                "cognito:username": "testuser",
+                "cognito:groups": ["test-bucket"],
+            }
 
             header = base64.b64encode(json.dumps({"alg": "RS256"}).encode()).decode().rstrip("=")
             payload = base64.b64encode(json.dumps(payload_data).encode()).decode().rstrip("=")

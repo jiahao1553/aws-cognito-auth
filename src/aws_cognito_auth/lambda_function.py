@@ -67,6 +67,61 @@ def check_sts_identity(sts_client):
         return False, _response(403, {"error": "Failed to assume role", "message": str(e)})
 
 
+def get_pool_config():
+    identity_pool_id = os.environ.get("IDENTITY_POOL_ID")
+    user_pool_id = os.environ.get("USER_POOL_ID")
+    if not identity_pool_id or not user_pool_id:
+        return (
+            None,
+            None,
+            _response(
+                500,
+                {"error": "Missing required environment variable: IDENTITY_POOL_ID/USER_POOL_ID"},
+            ),
+        )
+    return identity_pool_id, user_pool_id, None
+
+
+def verify_token_with_cognito(id_token, identity_pool_id, user_pool_id):
+    """
+    Federate the token through Cognito so it verifies the signature and expiry for us.
+    A successful GetId is what makes the claims inside the token trustworthy.
+    """
+    region = identity_pool_id.split(":")[0]
+    provider = f"cognito-idp.{user_pool_id.split('_')[0]}.amazonaws.com/{user_pool_id}"
+    client = boto3.client("cognito-identity", region_name=region)
+    client.get_id(IdentityPoolId=identity_pool_id, Logins={provider: id_token})
+
+
+def _verify_token(id_token, identity_pool_id, user_pool_id):
+    try:
+        verify_token_with_cognito(id_token, identity_pool_id, user_pool_id)
+        return True, None
+    except Exception as e:
+        print(f"Debug - Cognito rejected the ID token: {e}")
+        return False, _response(401, {"error": f"Token validation failed: {e}"})
+
+
+def get_allowed_buckets(token_claims):
+    """Each Cognito group the user belongs to is the name of a bucket they may use"""
+    return sorted(set(token_claims.get("cognito:groups") or []))
+
+
+def build_session_policy(buckets):
+    """
+    Restrict the session to the caller's buckets. Actions stay wide because effective
+    permissions are the intersection with the role policy, which is what limits them.
+    """
+    resources = []
+    for bucket in buckets:
+        resources.append(f"arn:aws:s3:::{bucket}")
+        resources.append(f"arn:aws:s3:::{bucket}/*")
+    return json.dumps(
+        {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "s3:*", "Resource": resources}]},
+        separators=(",", ":"),
+    )
+
+
 def _get_token_claims(id_token):
     try:
         claims = validate_cognito_token(id_token)
@@ -97,11 +152,14 @@ def _get_sts_client_and_identity(access_key, secret_key):
     return sts_client, None
 
 
-def _assume_role_and_respond(sts_client, role_arn, role_session_name, duration_seconds, username, user_id):
+def _assume_role_and_respond(
+    sts_client, role_arn, role_session_name, duration_seconds, username, user_id, session_policy
+):
     response = sts_client.assume_role(
         RoleArn=role_arn,
         RoleSessionName=role_session_name,
         DurationSeconds=min(duration_seconds, 43200),
+        Policy=session_policy,
         Tags=[
             {"Key": "CognitoUsername", "Value": username},
             {"Key": "CognitoSubject", "Value": user_id},
@@ -120,6 +178,31 @@ def _assume_role_and_respond(sts_client, role_arn, role_session_name, duration_s
             "username": username,
         },
     )
+
+
+def _authorize(id_token):
+    """Verify the token, then turn the caller's groups into a session policy"""
+    identity_pool_id, user_pool_id, error_resp = get_pool_config()
+    if error_resp:
+        return None, None, error_resp
+
+    print("Debug - About to verify the ID token with Cognito")
+    _, error_resp = _verify_token(id_token, identity_pool_id, user_pool_id)
+    if error_resp:
+        return None, None, error_resp
+
+    print("Debug - About to call _get_token_claims")
+    token_claims, error_resp = _get_token_claims(id_token)
+    if error_resp:
+        return None, None, error_resp
+
+    buckets = get_allowed_buckets(token_claims)
+    if not buckets:
+        print("Debug - Caller belongs to no groups, refusing to issue credentials")
+        return None, None, _response(403, {"error": "User is not a member of any bucket group"})
+
+    print(f"Debug - Scoping session to buckets: {', '.join(buckets)}")
+    return token_claims, build_session_policy(buckets), None
 
 
 def lambda_handler(event, context):
@@ -146,8 +229,7 @@ def lambda_handler(event, context):
         if error_resp:
             return error_resp
 
-        print("Debug - About to call _get_token_claims")
-        token_claims, error_resp = _get_token_claims(id_token)
+        token_claims, session_policy, error_resp = _authorize(id_token)
         if error_resp:
             return error_resp
 
@@ -178,7 +260,9 @@ def lambda_handler(event, context):
         base_session = f"CognitoAuth-{username}-{request_suffix}"
         role_session_name = base_session[:64]
 
-        return _assume_role_and_respond(sts_client, role_arn, role_session_name, duration_seconds, username, user_id)
+        return _assume_role_and_respond(
+            sts_client, role_arn, role_session_name, duration_seconds, username, user_id, session_policy
+        )
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
